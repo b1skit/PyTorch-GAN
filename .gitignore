@@ -11,5 +11,5 @@ implementations/*/saved_models
 implementations/*/previous_results
 saved_models/*
 images/*
-
+previous_results/*
 __pycache__

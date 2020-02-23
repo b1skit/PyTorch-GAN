@@ -64,16 +64,20 @@ def GetDataPath(dataset_name):
         else:
             print("Valid data path not found!")
     
+    print("Constructed data path: \"" + dataPath + "\"")
+
     return dataPath
 
 
 
-def GetModelDataPath(modelType):
+def GetModelDataPath(modelType, epoch = -1):
     """
-    Helper function: Find the relative saved weights/biases path
+    Helper function: Get the correct relative path of the saved model weights/biases
 
     modelType = "generator" or "discriminator" (defaults to generator if errors occur)
+    epoch = specific epoch to load. Loads the max if no valid epoch is supplied
     """
+
     # Try from the implementations directory:
     dataPath = "../../saved_models/"
     if not os.path.isdir(dataPath):
@@ -86,10 +90,16 @@ def GetModelDataPath(modelType):
         else:
             print("Valid data path not found!")
     
-    highestDataIndex = max([int(re.sub('[^0-9]','', f)) for f in os.listdir('./saved_models/')])
+    # If no valid epoch is supplied, get the max:
+    if epoch < 0:
+        epoch = max([int(re.sub('[^0-9]','', f)) for f in os.listdir(dataPath)])
 
-    dataName = "generator_" + str(highestDataIndex) + ".pth"
+    dataName = "generator_" + str(epoch) + ".pth"
     if modelType == "discriminator":
-        dataName = "discriminator_" + str(highestDataIndex) + ".pth"
-    
-    return dataPath + dataName
+        dataName = "discriminator_" + str(epoch) + ".pth"
+
+    finalPath = dataPath + dataName
+
+    print("Constructed saved model path: \"" + finalPath + "\"")
+
+    return finalPath
