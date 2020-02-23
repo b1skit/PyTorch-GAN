@@ -31,21 +31,11 @@ import torch
 # My stuff:
 import time
 
-# if not os.path.isdir("../../saved_models/generator_0.pth"):
-# if not os.path.isdir("./saved_models/generator_0.pth"):
-path = "./saved_models"
-if not os.path.isdir(path):
-    print("WTF")
-else:
-    print("FOUND IT")
-    print(os.listdir(path))
 
 
 #TODO:
 # Branch for different network configs
     # Print netowork stats: number of params etc?
-# Write a "Test" phase -> Use images never seen before
-    # Paper: Turn batch normalization update off to obtain an output that deterministically depends only on the input
 # Speed: 
     # Tune batch size to max GPU mem usage (nvidia-smi)
     # Double batch size? Double learning rate!
@@ -57,11 +47,13 @@ os.makedirs("saved_models", exist_ok=True)
 parser = argparse.ArgumentParser()
 parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
 # parser.add_argument("--epoch", type=int, default=1, help="epoch to start training from")
-# parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
-parser.add_argument("--n_epochs", type=int, default=1, help="number of epochs of training")
+parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
+# parser.add_argument("--n_epochs", type=int, default=1, help="number of epochs of training")
 # parser.add_argument("--dataset_name", type=str, default="img_align_celeba", help="name of the dataset")
 parser.add_argument("--train_dataset_name", type=str, default="Linnaeus 5 256X256_train", help="name of the training dataset")
-parser.add_argument("--test_dataset_name", type=str, default="Linnaeus 5 256X256_test", help="name of the testing dataset")
+# parser.add_argument("--train_dataset_name", type=str, default="Linnaeus 5 256X256_quick", help="name of the training dataset")
+parser.add_argument("--valid_dataset_name", type=str, default="Linnaeus 5 256X256_test", help="name of the testing dataset")
+# parser.add_argument("--valid_dataset_name", type=str, default="Linnaeus 5 256X256_quick", help="name of the testing dataset")
 # parser.add_argument("--batch_size", type=int, default=4, help="size of the batches")
 parser.add_argument("--batch_size", type=int, default=8, help="size of the training batches")
 parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate")
@@ -214,18 +206,21 @@ for epoch in range(opt.epoch, opt.n_epochs):
 
 
 
-# Test the trained model:
-#------------------------
+# Validate the trained model:
+#----------------------------
 
 print("Testing the trained model:")
 
 torch.cuda.empty_cache()
 
-
-with torch.no_grad():   #
+with torch.no_grad():   # Prevent OOM errors
 
     generator.load_state_dict(torch.load(GetModelDataPath("generator")))
     discriminator.load_state_dict(torch.load(GetModelDataPath("discriminator")))
+
+    # Set models to eval mode, so batchnorm is disabled
+    generator.eval()
+    discriminator.eval()
 
     generator           = generator.cuda()
     discriminator       = discriminator.cuda()
@@ -233,7 +228,7 @@ with torch.no_grad():   #
     criterion_GAN       = criterion_GAN.cuda()
     criterion_content   = criterion_content.cuda()
 
-    dataPath = GetDataPath(opt.test_dataset_name)
+    dataPath = GetDataPath(opt.valid_dataset_name)
 
     dataloader = DataLoader(
         ImageDataset(dataPath, hr_shape=hr_shape),
@@ -320,12 +315,16 @@ with torch.no_grad():   #
 
     print("\nNetwork stats:\n-----------")
 
-    print("Number of layers in generator = " + len(generator.parameters()))
-
     totalTrainable = sum(p.numel() for p in generator.parameters() if p.requires_grad)
     print("Number of trainable parameters in generator = " + str(totalTrainable))
 
-    print("Number of layers in discriminator = " + len(discriminator.parameters()))
-
     totalTrainable = sum(p.numel() for p in discriminator.parameters() if p.requires_grad)
     print("Number of trainable parameters in discriminator = " + str(totalTrainable))
+
+    print("Generator:")
+    print(generator)    
+
+    print("Discriminator:")
+    print(discriminator)
+
+    
