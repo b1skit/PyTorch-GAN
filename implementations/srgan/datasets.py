@@ -43,3 +43,23 @@ class ImageDataset(Dataset):
 
     def __len__(self):
         return len(self.files)
+
+
+
+def GetDataPath(dataset_name):
+    """
+    Helper function: Allow launching of the script from the project root directory (ie. within an IDE)
+    """
+    # Try from the implementations directory:
+    dataPath = "../../data/%s" % dataset_name
+    if not os.path.isdir("../../data/%s" % dataset_name):
+        print("Couldn't find path \"" + dataPath + "\", trying alternative")
+
+        # Try from the project root:
+        dataPath = "./data/%s" % dataset_name
+        if os.path.isdir(dataPath):
+            print("Alternative path \""+ dataPath + "\" found")
+        else:
+            print("Valid data path not found!")
+    
+    return dataPath

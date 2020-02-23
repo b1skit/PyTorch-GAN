@@ -41,7 +41,7 @@ class GeneratorResNet(nn.Module):
         res_blocks = []
         for _ in range(n_residual_blocks):
             res_blocks.append(ResidualBlock(64))
-        self.res_blocks = nn.Sequential(*res_blocks)
+        self.res_blocks = nn.Sequential(*res_blocks) # Note: * operator unpacks res_blocks into seperate args
 
         # Second conv layer post residual blocks
         self.conv2 = nn.Sequential(nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1), nn.BatchNorm2d(64, 0.8))
