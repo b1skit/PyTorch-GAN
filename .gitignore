@@ -9,5 +9,7 @@ implementations/*/data
 implementations/*/images
 implementations/*/saved_models
 implementations/*/previous_results
+saved_models/*
+images/*
 
 __pycache__

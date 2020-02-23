@@ -8,6 +8,8 @@ from torch.utils.data import Dataset
 from PIL import Image
 import torchvision.transforms as transforms
 
+import re # Regex for path scrubbing
+
 # Normalization parameters for pre-trained PyTorch models
 mean = np.array([0.485, 0.456, 0.406])
 std = np.array([0.229, 0.224, 0.225])
@@ -63,3 +65,31 @@ def GetDataPath(dataset_name):
             print("Valid data path not found!")
     
     return dataPath
+
+
+
+def GetModelDataPath(modelType):
+    """
+    Helper function: Find the relative saved weights/biases path
+
+    modelType = "generator" or "discriminator" (defaults to generator if errors occur)
+    """
+    # Try from the implementations directory:
+    dataPath = "../../saved_models/"
+    if not os.path.isdir(dataPath):
+        print("Couldn't find path \"" + dataPath + "\", trying alternative")
+
+        # Try from the project root:
+        dataPath = "./saved_models/"
+        if os.path.isdir(dataPath):
+            print("Alternative path \""+ dataPath + "\" found")
+        else:
+            print("Valid data path not found!")
+    
+    highestDataIndex = max([int(re.sub('[^0-9]','', f)) for f in os.listdir('./saved_models/')])
+
+    dataName = "generator_" + str(highestDataIndex) + ".pth"
+    if modelType == "discriminator":
+        dataName = "discriminator_" + str(highestDataIndex) + ".pth"
+    
+    return dataPath + dataName
