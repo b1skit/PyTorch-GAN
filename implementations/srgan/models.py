@@ -61,7 +61,7 @@ class GeneratorResNet(nn.Module):
         # Final output layer
         self.conv3 = nn.Sequential(nn.Conv2d(64, out_channels, kernel_size=9, stride=1, padding=4), nn.Tanh())
 
-    def forward(self, x):
+    def forward(self, x): # Skip connections
         out1 = self.conv1(x)
         out = self.res_blocks(out1)
         out2 = self.conv2(out)

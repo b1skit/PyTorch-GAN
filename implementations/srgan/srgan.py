@@ -35,7 +35,7 @@ import time
 
 #TODO:
 # Branch for different network configs
-    # Print netowork stats: number of params etc?
+# How do noise filtering models work? Might be worth adding some layers similar to that?
 # Speed: 
     # Tune batch size to max GPU mem usage (nvidia-smi)
     # Double batch size? Double learning rate!
@@ -45,8 +45,8 @@ os.makedirs("images", exist_ok=True)
 os.makedirs("saved_models", exist_ok=True)
 
 parser = argparse.ArgumentParser()
-# parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
-parser.add_argument("--epoch", type=int, default=157, help="epoch to start training from")
+parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
+# parser.add_argument("--epoch", type=int, default=157, help="epoch to start training from")
 parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
 # parser.add_argument("--n_epochs", type=int, default=1, help="number of epochs of training")
 # parser.add_argument("--dataset_name", type=str, default="img_align_celeba", help="name of the dataset")
@@ -56,10 +56,10 @@ parser.add_argument("--valid_dataset_name", type=str, default="Linnaeus 5 256X25
 # parser.add_argument("--valid_dataset_name", type=str, default="Linnaeus 5 256X256_quick", help="name of the testing dataset")
 # parser.add_argument("--batch_size", type=int, default=4, help="size of the batches")
 parser.add_argument("--batch_size", type=int, default=8, help="size of the training batches")
-parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate")
-# parser.add_argument("--lr", type=float, default=0.0004, help="adam: learning rate")
-parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
-# parser.add_argument("--b1", type=float, default=0.9, help="adam: decay of first order momentum of gradient")
+# parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate")
+parser.add_argument("--lr", type=float, default=0.0001, help="adam: learning rate")
+# parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
+parser.add_argument("--b1", type=float, default=0.9, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--decay_epoch", type=int, default=100, help="epoch from which to start lr decay")
 parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
@@ -108,6 +108,15 @@ if opt.epoch != 0:
 # Optimizers
 optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
 optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
+
+
+# Schedule learning rate:
+generator_scheduler = torch.optim.lr_scheduler.StepLR(optimizer_G, int(opt.n_epochs / 2), 0.1)
+discriminator_scheduler = torch.optim.lr_scheduler.StepLR(optimizer_D, int(opt.n_epochs / 2), 0.1)
+
+
+
+
 
 Tensor = torch.cuda.FloatTensor if cuda else torch.Tensor
 
@@ -161,6 +170,7 @@ for epoch in range(opt.epoch, opt.n_epochs):
 
         loss_G.backward()
         optimizer_G.step()
+        generator_scheduler.step()
 
         # ---------------------
         #  Train Discriminator
@@ -177,6 +187,7 @@ for epoch in range(opt.epoch, opt.n_epochs):
 
         loss_D.backward()
         optimizer_D.step()
+        discriminator_scheduler.step()
 
         # --------------
         #  Log Progress
