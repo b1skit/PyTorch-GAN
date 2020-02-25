@@ -38,7 +38,7 @@ import time
 # How do noise filtering models work? Might be worth adding some layers similar to that?
 # Speed: 
     # Tune batch size to max GPU mem usage (nvidia-smi)
-    # Double batch size? Double learning rate!
+    
 
 
 os.makedirs("images", exist_ok=True)
@@ -57,7 +57,7 @@ parser.add_argument("--valid_dataset_name", type=str, default="Linnaeus 5 256X25
 # parser.add_argument("--batch_size", type=int, default=4, help="size of the batches")
 parser.add_argument("--batch_size", type=int, default=8, help="size of the training batches")
 # parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate")
-parser.add_argument("--lr", type=float, default=0.0001, help="adam: learning rate")
+parser.add_argument("--lr", type=float, default=0.000283, help="adam: learning rate") # Multiply batch size by k: Multiply learning rate by sqrt(k)
 # parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--b1", type=float, default=0.9, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
@@ -111,11 +111,9 @@ optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt
 
 
 # Schedule learning rate:
-generator_scheduler = torch.optim.lr_scheduler.StepLR(optimizer_G, int(opt.n_epochs / 2), 0.1)
-discriminator_scheduler = torch.optim.lr_scheduler.StepLR(optimizer_D, int(opt.n_epochs / 2), 0.1)
-
-
-
+adjustLrStep = int(opt.n_epochs / 2) # Adjust the learning rate halfway through training
+generator_scheduler     = torch.optim.lr_scheduler.StepLR(optimizer_G, adjustLrStep, 0.1)
+discriminator_scheduler = torch.optim.lr_scheduler.StepLR(optimizer_D, adjustLrStep, 0.1)
 
 
 Tensor = torch.cuda.FloatTensor if cuda else torch.Tensor
