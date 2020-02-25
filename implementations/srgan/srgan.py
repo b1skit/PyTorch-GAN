@@ -31,14 +31,14 @@ import torch
 # My stuff:
 import time
 
-
-
 #TODO:
 # Branch for different network configs
 # How do noise filtering models work? Might be worth adding some layers similar to that?
 # Speed: 
     # Tune batch size to max GPU mem usage (nvidia-smi)
-    
+# Break testing out into a seperate file   
+
+
 
 
 os.makedirs("images", exist_ok=True)
@@ -50,16 +50,16 @@ parser.add_argument("--epoch", type=int, default=0, help="epoch to start trainin
 parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
 # parser.add_argument("--n_epochs", type=int, default=1, help="number of epochs of training")
 # parser.add_argument("--dataset_name", type=str, default="img_align_celeba", help="name of the dataset")
-parser.add_argument("--train_dataset_name", type=str, default="Linnaeus 5 256X256_train", help="name of the t56raining dataset")
+parser.add_argument("--train_dataset_name", type=str, default="Linnaeus 5 256X256_train", help="name of the training dataset")
 # parser.add_argument("--train_dataset_name", type=str, default="Linnaeus 5 256X256_quick", help="name of the training dataset")
 parser.add_argument("--valid_dataset_name", type=str, default="Linnaeus 5 256X256_test", help="name of the testing dataset")
 # parser.add_argument("--valid_dataset_name", type=str, default="Linnaeus 5 256X256_quick", help="name of the testing dataset")
 # parser.add_argument("--batch_size", type=int, default=4, help="size of the batches")
 parser.add_argument("--batch_size", type=int, default=8, help="size of the training batches")
-# parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate")
-parser.add_argument("--lr", type=float, default=0.000283, help="adam: learning rate") # Multiply batch size by k: Multiply learning rate by sqrt(k)
-# parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
-parser.add_argument("--b1", type=float, default=0.9, help="adam: decay of first order momentum of gradient")
+parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate")
+# parser.add_argument("--lr", type=float, default=0.000283, help="adam: learning rate") # Multiply batch size by k: Multiply learning rate by sqrt(k)
+parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
+# parser.add_argument("--b1", type=float, default=0.9, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--decay_epoch", type=int, default=100, help="epoch from which to start lr decay")
 parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
@@ -69,7 +69,7 @@ parser.add_argument("--channels", type=int, default=3, help="number of image cha
 parser.add_argument("--sample_interval", type=int, default=100, help="interval between saving image samples")
 # parser.add_argument("--sample_interval", type=int, default=20, help="interval between saving image samples")
 # parser.add_argument("--checkpoint_interval", type=int, default=-1, help="interval between model checkpoints")
-parser.add_argument("--checkpoint_interval", type=int, default=1, help="interval between model checkpoints")
+parser.add_argument("--checkpoint_interval", type=int, default=2, help="interval between model checkpoints")
 opt = parser.parse_args()
 print(opt)
 
@@ -111,12 +111,21 @@ optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt
 
 
 # Schedule learning rate:
-adjustLrStep = int(opt.n_epochs / 2) # Adjust the learning rate halfway through training
-generator_scheduler     = torch.optim.lr_scheduler.StepLR(optimizer_G, adjustLrStep, 0.1)
-discriminator_scheduler = torch.optim.lr_scheduler.StepLR(optimizer_D, adjustLrStep, 0.1)
+adjustLrStep    = max(int(opt.n_epochs / 2), 1) # Adjust the learning rate halfway through training
+G_scheduler     = torch.optim.lr_scheduler.StepLR(optimizer_G, step_size = adjustLrStep, gamma = 0.1)
+D_scheduler     = torch.optim.lr_scheduler.StepLR(optimizer_D, step_size = adjustLrStep, gamma = 0.1)
+print("Scheduled learning rate for decay at epoch " + str(adjustLrStep))
 
 
 Tensor = torch.cuda.FloatTensor if cuda else torch.Tensor
+
+
+# Seed after network construction, and before DataLoader init for deterministic "random" data shuffling/consistent comparisons
+torch.backends.cudnn.deterministic = True
+random.seed(1)
+torch.manual_seed(1)
+torch.cuda.manual_seed(1)
+np.random.seed(1)
 
 
 dataPath = GetDataPath(opt.train_dataset_name)
@@ -159,16 +168,15 @@ for epoch in range(opt.epoch, opt.n_epochs):
         loss_GAN = criterion_GAN(discriminator(gen_hr), valid)
 
         # Content loss
-        gen_features = feature_extractor(gen_hr)
-        real_features = feature_extractor(imgs_hr)
-        loss_content = criterion_content(gen_features, real_features.detach())
+        gen_features    = feature_extractor(gen_hr)
+        real_features   = feature_extractor(imgs_hr)
+        loss_content    = criterion_content(gen_features, real_features.detach())
 
         # Total loss
         loss_G = loss_content + 1e-3 * loss_GAN
 
         loss_G.backward()
         optimizer_G.step()
-        generator_scheduler.step()
 
         # ---------------------
         #  Train Discriminator
@@ -185,15 +193,14 @@ for epoch in range(opt.epoch, opt.n_epochs):
 
         loss_D.backward()
         optimizer_D.step()
-        discriminator_scheduler.step()
 
         # --------------
         #  Log Progress
         # --------------
         epochTime = time.time() - epochStartTime
         sys.stdout.write(
-            "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f] [Epoch time: %fs]\n"
-            % (epoch, opt.n_epochs, i, len(dataloader), loss_D.item(), loss_G.item(), epochTime)
+            "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f] [Epoch time: %fs] [D learn: %f] [G learn: %f]\n"
+            % (epoch, opt.n_epochs, i, len(dataloader), loss_D.item(), loss_G.item(), epochTime, optimizer_D.param_groups[0]['lr'], optimizer_G.param_groups[0]['lr'])
         )
 
         batches_done = epoch * len(dataloader) + i
@@ -208,7 +215,12 @@ for epoch in range(opt.epoch, opt.n_epochs):
             img_grid = torch.cat((imgs_lr, gen_hr, imgs_hr), -1)
             save_image(img_grid, "images/%d.png" % batches_done, normalize=False)
 
-    if opt.checkpoint_interval != -1 and epoch % opt.checkpoint_interval == 0:
+    
+    # Step the scheduler once per epoch
+    G_scheduler.step()
+    D_scheduler.step()
+
+    if opt.checkpoint_interval != -1 and (epoch % opt.checkpoint_interval == 0 or epoch == opt.n_epochs - 1):
         # Save model checkpoints
         torch.save(generator.state_dict(), "saved_models/generator_%d.pth" % epoch)
         torch.save(discriminator.state_dict(), "saved_models/discriminator_%d.pth" % epoch)
@@ -217,9 +229,6 @@ for epoch in range(opt.epoch, opt.n_epochs):
 
 # Validate the trained model:
 #----------------------------
-
-#TODO: Break testing out into a seperate file
-
 print("Testing the trained model:")
 
 torch.cuda.empty_cache()
@@ -248,7 +257,18 @@ with torch.no_grad():   # Prevent OOM errors
         num_workers=opt.n_cpu,
     )
 
+    # Initialize min/max result caches:
+    max_D_loss          = -1
+    max_D_loss_index    = -1
+    min_D_loss          = sys.maxsize
+    min_D_loss_index    = -1
 
+    max_G_loss          = -1
+    max_G_loss_index    = -1
+    min_G_loss          = sys.maxsize
+    min_G_loss_index    = -1
+
+    # Validate:
     for i, imgs in enumerate(dataloader):
             testStartTime = time.time()
 
@@ -299,6 +319,20 @@ with torch.no_grad():   # Prevent OOM errors
             # loss_D.backward()
             # optimizer_D.step()
 
+            # Update log records
+            if loss_G.item() > max_G_loss:
+                max_G_loss          = loss_G.item()
+                max_G_loss_index    = i
+            if loss_G.item() < min_G_loss:
+                min_G_loss          = loss_G.item()
+                min_G_loss_index    = i
+            if loss_D.item() > max_D_loss:
+                max_D_loss          = loss_D.item()
+                max_D_loss_index    = i
+            if loss_D.item() < min_D_loss:
+                min_D_loss          = loss_D.item()
+                min_D_loss_index    = i
+
             # --------------
             #  Log Progress
             # --------------
@@ -320,11 +354,20 @@ with torch.no_grad():   # Prevent OOM errors
 
 
     # Print stats:
-    print("\nTraining results:\n------------")
+    print("\nTraining results:\n-----------------")
     trainingEndTime = time.time()
     print("Total training time (secs) = " + str(trainingEndTime - trainingStartTime))
 
-    print("\nNetwork stats:\n-----------")
+    print("\nTest results:\n-------------")
+    
+    print("Min generator test loss = " + str(min_G_loss) + ", at index " + str(min_G_loss_index))
+    print("Max generator test loss = " + str(max_G_loss) + ", at index " + str(max_G_loss_index))
+
+    print("Min discriminator test loss = " + str(min_D_loss) + ", at index " + str(min_D_loss_index))
+    print("Max discriminator test loss = " + str(max_D_loss) + ", at index " + str(max_D_loss_index))
+    
+
+    print("\nNetwork stats:\n--------------")
 
     totalTrainable = sum(p.numel() for p in generator.parameters() if p.requires_grad)
     print("Number of trainable parameters in generator = " + str(totalTrainable))
@@ -332,10 +375,10 @@ with torch.no_grad():   # Prevent OOM errors
     totalTrainable = sum(p.numel() for p in discriminator.parameters() if p.requires_grad)
     print("Number of trainable parameters in discriminator = " + str(totalTrainable))
 
-    print("Generator:")
+    print("Generator:\n----------")
     print(generator)    
 
-    print("Discriminator:")
+    print("Discriminator:\n--------------")
     print(discriminator)
 
     
