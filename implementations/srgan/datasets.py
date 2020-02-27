@@ -8,7 +8,9 @@ from torch.utils.data import Dataset
 from PIL import Image
 import torchvision.transforms as transforms
 
-import re # Regex for path scrubbing
+import re       # Regex for path scrubbing
+import pickle   # For load/save of random state
+import random
 
 # Normalization parameters for pre-trained PyTorch models
 mean = np.array([0.485, 0.456, 0.406])
@@ -54,7 +56,7 @@ def GetDataPath(dataset_name):
     """
     # Try from the implementations directory:
     dataPath = "../../data/%s" % dataset_name
-    if not os.path.isdir("../../data/%s" % dataset_name):
+    if not os.path.isdir(dataPath):
         print("Couldn't find path \"" + dataPath + "\", trying alternative")
 
         # Try from the project root:
@@ -64,7 +66,7 @@ def GetDataPath(dataset_name):
         else:
             print("Valid data path not found!")
     
-    print("Constructed data path: \"" + dataPath + "\"")
+    print("Using data path: \"" + dataPath + "\"")
 
     return dataPath
 
@@ -100,6 +102,58 @@ def GetModelDataPath(modelType, epoch = -1):
 
     finalPath = dataPath + dataName
 
-    print("Constructed saved model path: \"" + finalPath + "\"")
+    print("Using saved model path: \"" + finalPath + "\"")
 
     return finalPath
+
+
+def GetRandomSavePath():
+    """
+    Helper function: Get the relative path for saving RNG states
+    """
+    # Try from the implementations directory:
+    dataPath = "../../saved_models/"
+    if not os.path.isdir(dataPath):
+        print("Couldn't find RNG path \"" + dataPath + "\", trying alternative")
+
+        # Try from the project root:
+        dataPath = "./saved_models/"
+        if os.path.isdir(dataPath):
+            print("Alternative RNG path \""+ dataPath + "\" found")
+        else:
+            print("Valid RNG path not found!")
+    
+    print("Using RNG state directory: \"" + dataPath + "\"")
+
+    return dataPath
+
+
+def LoadRandomState(stateNum):
+    print("Loading random state")
+
+    filename = 'rngState_' + str(stateNum)
+
+    try:
+        randomStates = pickle.load( open(GetRandomSavePath() + filename, "rb") )
+
+        random.setstate(randomStates["pythonRandom"])
+        torch.set_rng_state(randomStates["torchRandom"])
+        torch.cuda.set_rng_state(randomStates["torchCudaRandom"])
+        np.random.set_rng_state(randomStates["numpyRandom"])
+
+    except:
+        print("Failed to load random state!")
+
+
+def SaveRandomState(stateNum):
+    randomStates = {
+        "pythonRandom"      : random.getstate(), 
+        "torchRandom"       : torch.get_rng_state(),
+        "torchCudaRandom"   : torch.cuda.get_rng_state(),
+        "numpyRandom"       : np.random.get_state()
+    }
+
+    filename = 'rngState_' + str(stateNum)
+    savePath = GetRandomSavePath() + filename
+
+    pickle.dump(randomStates, open(savePath, "wb"))

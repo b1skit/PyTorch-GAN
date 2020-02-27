@@ -31,6 +31,7 @@ import torch
 # My stuff:
 import time
 
+
 #TODO:
 # Branch for different network configs
 # How do noise filtering models work? Might be worth adding some layers similar to that?
@@ -45,13 +46,13 @@ os.makedirs("images", exist_ok=True)
 os.makedirs("saved_models", exist_ok=True)
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
-# parser.add_argument("--epoch", type=int, default=157, help="epoch to start training from")
+# parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
+parser.add_argument("--epoch", type=int, default=2, help="epoch to start training from")
 parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
 # parser.add_argument("--n_epochs", type=int, default=1, help="number of epochs of training")
 # parser.add_argument("--dataset_name", type=str, default="img_align_celeba", help="name of the dataset")
-parser.add_argument("--train_dataset_name", type=str, default="Linnaeus 5 256X256_train", help="name of the training dataset")
-# parser.add_argument("--train_dataset_name", type=str, default="Linnaeus 5 256X256_quick", help="name of the training dataset")
+# parser.add_argument("--train_dataset_name", type=str, default="Linnaeus 5 256X256_train", help="name of the training dataset")
+parser.add_argument("--train_dataset_name", type=str, default="Linnaeus 5 256X256_quick", help="name of the training dataset")
 parser.add_argument("--valid_dataset_name", type=str, default="Linnaeus 5 256X256_test", help="name of the testing dataset")
 # parser.add_argument("--valid_dataset_name", type=str, default="Linnaeus 5 256X256_quick", help="name of the testing dataset")
 # parser.add_argument("--batch_size", type=int, default=4, help="size of the batches")
@@ -66,10 +67,10 @@ parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads 
 parser.add_argument("--hr_height", type=int, default=256, help="high res. image height")
 parser.add_argument("--hr_width", type=int, default=256, help="high res. image width")
 parser.add_argument("--channels", type=int, default=3, help="number of image channels")
-parser.add_argument("--sample_interval", type=int, default=100, help="interval between saving image samples")
-# parser.add_argument("--sample_interval", type=int, default=20, help="interval between saving image samples")
+# parser.add_argument("--sample_interval", type=int, default=100, help="interval between saving image samples")
+parser.add_argument("--sample_interval", type=int, default=1, help="interval between saving image samples")
 # parser.add_argument("--checkpoint_interval", type=int, default=-1, help="interval between model checkpoints")
-parser.add_argument("--checkpoint_interval", type=int, default=2, help="interval between model checkpoints")
+parser.add_argument("--checkpoint_interval", type=int, default=1, help="interval between model checkpoints")
 opt = parser.parse_args()
 print(opt)
 
@@ -111,21 +112,34 @@ optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt
 
 
 # Schedule learning rate:
-adjustLrStep    = max(int(opt.n_epochs / 2), 1) # Adjust the learning rate halfway through training
-G_scheduler     = torch.optim.lr_scheduler.StepLR(optimizer_G, step_size = adjustLrStep, gamma = 0.1)
-D_scheduler     = torch.optim.lr_scheduler.StepLR(optimizer_D, step_size = adjustLrStep, gamma = 0.1)
-print("Scheduled learning rate for decay at epoch " + str(adjustLrStep))
+G_scheduler     = torch.optim.lr_scheduler.StepLR(optimizer_G, step_size = opt.decay_epoch, gamma = 0.1)
+D_scheduler     = torch.optim.lr_scheduler.StepLR(optimizer_D, step_size = opt.decay_epoch, gamma = 0.1)
+
+# Start the optimizer from the correct point:
+if opt.epoch != 0:
+    for _ in range(0, opt.epoch - 1):
+        G_scheduler.step()
+        D_scheduler.step()   
+    
+print("Scheduled learning rate for decay at epoch " + str(opt.decay_epoch))
 
 
 Tensor = torch.cuda.FloatTensor if cuda else torch.Tensor
 
 
 # Seed after network construction, and before DataLoader init for deterministic "random" data shuffling/consistent comparisons
-torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.deterministic  = True
+torch.backends.cudnn.benchmark      = False
 random.seed(1)
 torch.manual_seed(1)
 torch.cuda.manual_seed(1)
 np.random.seed(1)
+
+# Restore the RNG states if we're resuming training
+if opt.epoch != 0:
+    LoadRandomState(opt.epoch - 1)
+   
+
 
 
 dataPath = GetDataPath(opt.train_dataset_name)
@@ -152,8 +166,8 @@ for epoch in range(opt.epoch, opt.n_epochs):
         imgs_hr = Variable(imgs["hr"].type(Tensor))
 
         # Adversarial ground truths
-        valid = Variable(Tensor(np.ones((imgs_lr.size(0), *discriminator.output_shape))), requires_grad=False)
-        fake = Variable(Tensor(np.zeros((imgs_lr.size(0), *discriminator.output_shape))), requires_grad=False)
+        valid   = Variable(Tensor(np.ones((imgs_lr.size(0), *discriminator.output_shape))), requires_grad=False)
+        fake    = Variable(Tensor(np.zeros((imgs_lr.size(0), *discriminator.output_shape))), requires_grad=False)
 
         # ------------------
         #  Train Generators
@@ -224,6 +238,9 @@ for epoch in range(opt.epoch, opt.n_epochs):
         # Save model checkpoints
         torch.save(generator.state_dict(), "saved_models/generator_%d.pth" % epoch)
         torch.save(discriminator.state_dict(), "saved_models/discriminator_%d.pth" % epoch)
+
+        # Save RNG state:
+        SaveRandomState(epoch)
 
 
 
