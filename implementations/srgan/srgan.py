@@ -62,7 +62,8 @@ parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rat
 parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
 # parser.add_argument("--b1", type=float, default=0.9, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
-parser.add_argument("--decay_epoch", type=int, default=100, help="epoch from which to start lr decay")
+# parser.add_argument("--decay_epoch", type=int, default=100, help="epoch from which to start lr decay")
+parser.add_argument("--decay_epoch", type=int, default=4, help="epoch from which to start lr decay")
 parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
 parser.add_argument("--hr_height", type=int, default=256, help="high res. image height")
 parser.add_argument("--hr_width", type=int, default=256, help="high res. image width")
@@ -115,11 +116,11 @@ optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt
 G_scheduler     = torch.optim.lr_scheduler.StepLR(optimizer_G, step_size = opt.decay_epoch, gamma = 0.1)
 D_scheduler     = torch.optim.lr_scheduler.StepLR(optimizer_D, step_size = opt.decay_epoch, gamma = 0.1)
 
-# Start the optimizer from the correct point:
-if opt.epoch != 0:
-    for _ in range(0, opt.epoch - 1):
-        G_scheduler.step()
-        D_scheduler.step()   
+# Load previous scheduler states:
+if opt.epoch != 0:   
+    G_scheduler.load_state_dict(torch.load(GetModelPath() + 'g_scheduler_' + str(opt.epoch - 1) + '.pth'))
+    D_scheduler.load_state_dict(torch.load(GetModelPath() + 'g_scheduler_' + str(opt.epoch - 1) + '.pth'))
+
     
 print("Scheduled learning rate for decay at epoch " + str(opt.decay_epoch))
 
@@ -238,6 +239,10 @@ for epoch in range(opt.epoch, opt.n_epochs):
         # Save model checkpoints
         torch.save(generator.state_dict(), "saved_models/generator_%d.pth" % epoch)
         torch.save(discriminator.state_dict(), "saved_models/discriminator_%d.pth" % epoch)
+
+        # Save scheduler checkpoints:
+        torch.save(G_scheduler.state_dict(), GetModelPath() + 'g_scheduler_' + str(epoch) + '.pth')
+        torch.save(D_scheduler.state_dict(), GetModelPath() + 'd_scheduler_' + str(epoch) + '.pth')
 
         # Save RNG state:
         SaveRandomState(epoch)

@@ -57,18 +57,27 @@ def GetDataPath(dataset_name):
     # Try from the implementations directory:
     dataPath = "../../data/%s" % dataset_name
     if not os.path.isdir(dataPath):
-        print("Couldn't find path \"" + dataPath + "\", trying alternative")
-
         # Try from the project root:
         dataPath = "./data/%s" % dataset_name
-        if os.path.isdir(dataPath):
-            print("Alternative path \""+ dataPath + "\" found")
-        else:
-            print("Valid data path not found!")
-    
-    print("Using data path: \"" + dataPath + "\"")
+        if not os.path.isdir(dataPath):
+            print("Error: Valid data path not found!")
 
     return dataPath
+
+
+def GetModelPath():
+    """
+    Helper function: Get the relative /saved_models/ path
+    """
+    # Try from the implementations directory:
+    modelPath = "../../saved_models/"
+    if not os.path.isdir(modelPath):
+        # Try from the project root:
+        modelPath = "./saved_models/"
+        if not os.path.isdir(modelPath):
+            print("Error: Valid model path not found!")
+
+    return modelPath
 
 
 
@@ -80,17 +89,7 @@ def GetModelDataPath(modelType, epoch = -1):
     epoch = specific epoch to load. Loads the max if no valid epoch is supplied
     """
 
-    # Try from the implementations directory:
-    dataPath = "../../saved_models/"
-    if not os.path.isdir(dataPath):
-        print("Couldn't find path \"" + dataPath + "\", trying alternative")
-
-        # Try from the project root:
-        dataPath = "./saved_models/"
-        if os.path.isdir(dataPath):
-            print("Alternative path \""+ dataPath + "\" found")
-        else:
-            print("Valid data path not found!")
+    dataPath = GetModelPath()
     
     # If no valid epoch is supplied, get the max:
     if epoch < 0:
@@ -107,34 +106,16 @@ def GetModelDataPath(modelType, epoch = -1):
     return finalPath
 
 
-def GetRandomSavePath():
-    """
-    Helper function: Get the relative path for saving RNG states
-    """
-    # Try from the implementations directory:
-    dataPath = "../../saved_models/"
-    if not os.path.isdir(dataPath):
-        print("Couldn't find RNG path \"" + dataPath + "\", trying alternative")
-
-        # Try from the project root:
-        dataPath = "./saved_models/"
-        if os.path.isdir(dataPath):
-            print("Alternative RNG path \""+ dataPath + "\" found")
-        else:
-            print("Valid RNG path not found!")
-    
-    print("Using RNG state directory: \"" + dataPath + "\"")
-
-    return dataPath
-
-
 def LoadRandomState(stateNum):
+    """
+    Loads a previous random state from the saved_models directory
+    """
     print("Loading random state")
 
     filename = 'rngState_' + str(stateNum)
 
     try:
-        randomStates = pickle.load( open(GetRandomSavePath() + filename, "rb") )
+        randomStates = pickle.load( open(GetModelPath() + filename, "rb") )
 
         random.setstate(randomStates["pythonRandom"])
         torch.set_rng_state(randomStates["torchRandom"])
@@ -146,6 +127,9 @@ def LoadRandomState(stateNum):
 
 
 def SaveRandomState(stateNum):
+    """
+    Save a random state checkpoint
+    """
     randomStates = {
         "pythonRandom"      : random.getstate(), 
         "torchRandom"       : torch.get_rng_state(),
@@ -154,6 +138,6 @@ def SaveRandomState(stateNum):
     }
 
     filename = 'rngState_' + str(stateNum)
-    savePath = GetRandomSavePath() + filename
+    savePath = GetModelPath() + filename
 
     pickle.dump(randomStates, open(savePath, "wb"))
