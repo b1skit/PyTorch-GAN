@@ -112,7 +112,7 @@ def LoadRandomState(stateNum):
     """
     print("Loading random state")
 
-    filename = 'rngState_' + str(stateNum)
+    filename = 'rngState_' + str(stateNum) + '.pth'
 
     try:
         randomStates = pickle.load( open(GetModelPath() + filename, "rb") )
@@ -120,10 +120,10 @@ def LoadRandomState(stateNum):
         random.setstate(randomStates["pythonRandom"])
         torch.set_rng_state(randomStates["torchRandom"])
         torch.cuda.set_rng_state(randomStates["torchCudaRandom"])
-        np.random.set_rng_state(randomStates["numpyRandom"])
+        np.random.set_state(randomStates["numpyRandom"])
 
     except:
-        print("Failed to load random state!")
+        print("ERROR: Failed to load random state!")
 
 
 def SaveRandomState(stateNum):
@@ -137,7 +137,38 @@ def SaveRandomState(stateNum):
         "numpyRandom"       : np.random.get_state()
     }
 
-    filename = 'rngState_' + str(stateNum)
+    filename = 'rngState_' + str(stateNum) + '.pth'
+
     savePath = GetModelPath() + filename
 
     pickle.dump(randomStates, open(savePath, "wb"))
+
+
+def LoadTrainingTime(stateNum):
+    """
+    Load the number of seconds spent training
+    """
+
+    filename = 'time_' + str(stateNum) + '.pth'
+
+    try:
+        timeVals = pickle.load( open(GetModelPath() + filename, "rb"))
+        return timeVals["trainingTime"]
+
+    except:
+        print("ERROR: Failed to load training times! Returning 0")
+        return 0
+
+
+def SaveTrainingTime(stateNum, seconds):
+    """
+    Save the number of seconds spent training
+    """
+    times = {
+        "trainingTime" : seconds
+    }
+
+    filename = 'time_' + str(stateNum) + '.pth'
+    savePath = GetModelPath() + filename
+
+    pickle.dump(times, open(savePath, "wb"))

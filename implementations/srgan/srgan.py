@@ -46,13 +46,13 @@ os.makedirs("images", exist_ok=True)
 os.makedirs("saved_models", exist_ok=True)
 
 parser = argparse.ArgumentParser()
-# parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
-parser.add_argument("--epoch", type=int, default=2, help="epoch to start training from")
+parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
+# parser.add_argument("--epoch", type=int, default=4, help="epoch to start training from")
 parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
-# parser.add_argument("--n_epochs", type=int, default=1, help="number of epochs of training")
+# parser.add_argument("--n_epochs", type=int, default=6, help="number of epochs of training")
 # parser.add_argument("--dataset_name", type=str, default="img_align_celeba", help="name of the dataset")
-# parser.add_argument("--train_dataset_name", type=str, default="Linnaeus 5 256X256_train", help="name of the training dataset")
-parser.add_argument("--train_dataset_name", type=str, default="Linnaeus 5 256X256_quick", help="name of the training dataset")
+parser.add_argument("--train_dataset_name", type=str, default="Linnaeus 5 256X256_train", help="name of the training dataset")
+# parser.add_argument("--train_dataset_name", type=str, default="Linnaeus 5 256X256_quick", help="name of the training dataset")
 parser.add_argument("--valid_dataset_name", type=str, default="Linnaeus 5 256X256_test", help="name of the testing dataset")
 # parser.add_argument("--valid_dataset_name", type=str, default="Linnaeus 5 256X256_quick", help="name of the testing dataset")
 # parser.add_argument("--batch_size", type=int, default=4, help="size of the batches")
@@ -62,16 +62,16 @@ parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rat
 parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
 # parser.add_argument("--b1", type=float, default=0.9, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
-# parser.add_argument("--decay_epoch", type=int, default=100, help="epoch from which to start lr decay")
-parser.add_argument("--decay_epoch", type=int, default=4, help="epoch from which to start lr decay")
+parser.add_argument("--decay_epoch", type=int, default=100, help="epoch from which to start lr decay")
+# parser.add_argument("--decay_epoch", type=int, default=4, help="epoch from which to start lr decay")
 parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
 parser.add_argument("--hr_height", type=int, default=256, help="high res. image height")
 parser.add_argument("--hr_width", type=int, default=256, help="high res. image width")
 parser.add_argument("--channels", type=int, default=3, help="number of image channels")
-# parser.add_argument("--sample_interval", type=int, default=100, help="interval between saving image samples")
-parser.add_argument("--sample_interval", type=int, default=1, help="interval between saving image samples")
+parser.add_argument("--sample_interval", type=int, default=100, help="interval between saving image samples")
+# parser.add_argument("--sample_interval", type=int, default=1, help="interval between saving image samples")
 # parser.add_argument("--checkpoint_interval", type=int, default=-1, help="interval between model checkpoints")
-parser.add_argument("--checkpoint_interval", type=int, default=1, help="interval between model checkpoints")
+parser.add_argument("--checkpoint_interval", type=int, default=10, help="interval between model checkpoints")
 opt = parser.parse_args()
 print(opt)
 
@@ -115,14 +115,13 @@ optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt
 # Schedule learning rate:
 G_scheduler     = torch.optim.lr_scheduler.StepLR(optimizer_G, step_size = opt.decay_epoch, gamma = 0.1)
 D_scheduler     = torch.optim.lr_scheduler.StepLR(optimizer_D, step_size = opt.decay_epoch, gamma = 0.1)
+print("Scheduled learning rate for decay at epoch " + str(opt.decay_epoch))
 
 # Load previous scheduler states:
 if opt.epoch != 0:   
     G_scheduler.load_state_dict(torch.load(GetModelPath() + 'g_scheduler_' + str(opt.epoch - 1) + '.pth'))
     D_scheduler.load_state_dict(torch.load(GetModelPath() + 'g_scheduler_' + str(opt.epoch - 1) + '.pth'))
 
-    
-print("Scheduled learning rate for decay at epoch " + str(opt.decay_epoch))
 
 
 Tensor = torch.cuda.FloatTensor if cuda else torch.Tensor
@@ -153,14 +152,20 @@ dataloader = DataLoader(
 )
 
 
+# Set up timing:
+trainingStartTime   = time.time()
+totalTrainingTime   = 0
+if opt.epoch != 0:
+    totalTrainingTime = LoadTrainingTime(opt.epoch - 1)
+
+
 # ----------
 #  Training
 # ----------
-trainingStartTime = time.time()
-
 for epoch in range(opt.epoch, opt.n_epochs):
+    epochStartTime = time.time()
     for i, imgs in enumerate(dataloader):
-        epochStartTime = time.time()
+        batchStartTime = time.time()
 
         # Configure model input
         imgs_lr = Variable(imgs["lr"].type(Tensor))
@@ -212,10 +217,11 @@ for epoch in range(opt.epoch, opt.n_epochs):
         # --------------
         #  Log Progress
         # --------------
-        epochTime = time.time() - epochStartTime
+        batchTime           = time.time() - batchStartTime
+
         sys.stdout.write(
-            "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f] [Epoch time: %fs] [D learn: %f] [G learn: %f]\n"
-            % (epoch, opt.n_epochs, i, len(dataloader), loss_D.item(), loss_G.item(), epochTime, optimizer_D.param_groups[0]['lr'], optimizer_G.param_groups[0]['lr'])
+            "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f] [Batch time: %fs] [D learn: %f] [G learn: %f]\n"
+            % (epoch, opt.n_epochs, i, len(dataloader), loss_D.item(), loss_G.item(), batchTime, optimizer_D.param_groups[0]['lr'], optimizer_G.param_groups[0]['lr'])
         )
 
         batches_done = epoch * len(dataloader) + i
@@ -235,6 +241,10 @@ for epoch in range(opt.epoch, opt.n_epochs):
     G_scheduler.step()
     D_scheduler.step()
 
+    # Update epoch time:
+    epochTime           = time.time() - epochStartTime
+    totalTrainingTime   = totalTrainingTime + epochTime
+
     if opt.checkpoint_interval != -1 and (epoch % opt.checkpoint_interval == 0 or epoch == opt.n_epochs - 1):
         # Save model checkpoints
         torch.save(generator.state_dict(), "saved_models/generator_%d.pth" % epoch)
@@ -244,11 +254,18 @@ for epoch in range(opt.epoch, opt.n_epochs):
         torch.save(G_scheduler.state_dict(), GetModelPath() + 'g_scheduler_' + str(epoch) + '.pth')
         torch.save(D_scheduler.state_dict(), GetModelPath() + 'd_scheduler_' + str(epoch) + '.pth')
 
+        # Save timing info:
+        SaveTrainingTime(epoch, totalTrainingTime)
+
         # Save RNG state:
         SaveRandomState(epoch)
 
 
+# Cache the final training time:
+trainingEndTime = time.time()
 
+
+#----------------------------
 # Validate the trained model:
 #----------------------------
 print("Testing the trained model:")
@@ -375,10 +392,12 @@ with torch.no_grad():   # Prevent OOM errors
             save_image(img_grid, "images/test_%d.png" % i, normalize=False)
 
 
+    # ------------
     # Print stats:
+    # ------------
     print("\nTraining results:\n-----------------")
-    trainingEndTime = time.time()
-    print("Total training time (secs) = " + str(trainingEndTime - trainingStartTime))
+    print("Current session training time (secs) = " + str(trainingEndTime - trainingStartTime))
+    print("TOTAL training time (secs) = " + str(totalTrainingTime))
 
     print("\nTest results:\n-------------")
     
@@ -397,10 +416,10 @@ with torch.no_grad():   # Prevent OOM errors
     totalTrainable = sum(p.numel() for p in discriminator.parameters() if p.requires_grad)
     print("Number of trainable parameters in discriminator = " + str(totalTrainable))
 
-    print("Generator:\n----------")
+    print("\nGenerator:\n----------")
     print(generator)    
 
-    print("Discriminator:\n--------------")
+    print("\nDiscriminator:\n--------------")
     print(discriminator)
 
     
