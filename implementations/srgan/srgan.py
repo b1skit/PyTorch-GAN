@@ -34,7 +34,6 @@ import validateModel
 
 
 #TODO:
-# Branch for different network configs
 # How do noise filtering models work? Might be worth adding some layers similar to that?
 # Speed: 
     # Tune batch size to max GPU mem usage (nvidia-smi)
@@ -45,8 +44,8 @@ os.makedirs("images", exist_ok=True)
 os.makedirs("saved_models", exist_ok=True)
 
 parser = argparse.ArgumentParser()
-# parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
-parser.add_argument("--epoch", type=int, default=200, help="epoch to start training from")
+parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
+# parser.add_argument("--epoch", type=int, default=200, help="epoch to start training from")
 parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
 # parser.add_argument("--n_epochs", type=int, default=6, help="number of epochs of training")
 # parser.add_argument("--dataset_name", type=str, default="img_align_celeba", help="name of the dataset")
@@ -61,8 +60,9 @@ parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rat
 parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
 # parser.add_argument("--b1", type=float, default=0.9, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
-parser.add_argument("--decay_epoch", type=int, default=100, help="epoch from which to start lr decay")
-# parser.add_argument("--decay_epoch", type=int, default=4, help="epoch from which to start lr decay")
+# parser.add_argument("--g_decay_epoch", type=int, default=100, help="epoch from which to start generator lr decay. If < 0, no decay is used")
+parser.add_argument("--g_decay_epoch", type=int, default=-1, help="epoch from which to start generator lr decay. If < 0, no decay is used")
+parser.add_argument("--d_decay_epoch", type=int, default=-1, help="epoch from which to start discriminator lr decay. If < 0, no decay is used")
 parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
 parser.add_argument("--hr_height", type=int, default=256, help="high res. image height")
 parser.add_argument("--hr_width", type=int, default=256, help="high res. image width")
@@ -71,6 +71,8 @@ parser.add_argument("--sample_interval", type=int, default=100, help="interval b
 # parser.add_argument("--sample_interval", type=int, default=1, help="interval between saving image samples")
 # parser.add_argument("--checkpoint_interval", type=int, default=-1, help="interval between model checkpoints")
 parser.add_argument("--checkpoint_interval", type=int, default=5, help="interval between model checkpoints")
+# parser.add_argument("--num_residual_blocks", type=int, default=16, help="Number of residual blocks to use in the generator network")
+parser.add_argument("--num_residual_blocks", type=int, default=16, help="Number of residual blocks to use in the generator network")
 opt = parser.parse_args()
 print(opt)
 
@@ -79,7 +81,8 @@ cuda = torch.cuda.is_available()
 hr_shape = (opt.hr_height, opt.hr_width)
 
 # Initialize generator and discriminator
-generator           = GeneratorResNet()
+# generator           = GeneratorResNet()
+generator           = GeneratorResNet(n_residual_blocks=opt.num_residual_blocks)
 discriminator       = Discriminator(input_shape=(opt.channels, *hr_shape))
 feature_extractor   = FeatureExtractor()
 
@@ -112,20 +115,25 @@ optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt
 
 
 # Schedule learning rate:
-G_scheduler     = torch.optim.lr_scheduler.StepLR(optimizer_G, step_size = opt.decay_epoch, gamma = 0.1)
-print("Scheduled generator learning rate for decay at epoch " + str(opt.decay_epoch))
-# D_scheduler     = torch.optim.lr_scheduler.StepLR(optimizer_D, step_size = opt.decay_epoch, gamma = 0.1)
-# print("Scheduled learning rate for decay at epoch " + str(opt.decay_epoch))
+if opt.g_decay_epoch < 0:
+    opt.g_decay_epoch = opt.n_epochs + 1 # Disable learning rate decay
+if opt.d_decay_epoch < 0:
+    opt.d_decay_epoch = opt.n_epochs + 1
+G_scheduler     = torch.optim.lr_scheduler.StepLR(optimizer_G, step_size = opt.g_decay_epoch, gamma = 0.1)
+print("Scheduled generator learning rate for decay at epoch " + str(opt.g_decay_epoch))
+
+D_scheduler     = torch.optim.lr_scheduler.StepLR(optimizer_D, step_size = opt.d_decay_epoch, gamma = 0.1)
+print("Scheduled discriminator learning rate for decay at epoch " + str(opt.d_decay_epoch))
 
 # Load previous scheduler states:
 if opt.epoch != 0:
     
     G_scheduler.load_state_dict(torch.load(GetModelPath() + 'g_scheduler_' + str(opt.epoch - 1) + '.pth'))
-    # D_scheduler.load_state_dict(torch.load(GetModelPath() + 'd_scheduler_' + str(opt.epoch - 1) + '.pth'))
+    D_scheduler.load_state_dict(torch.load(GetModelPath() + 'd_scheduler_' + str(opt.epoch - 1) + '.pth'))
 
     # Seems this gets the loaded learning rate to stick?
     G_scheduler.step(opt.epoch - 1)
-    # D_scheduler.step(opt.epoch - 1)
+    D_scheduler.step(opt.epoch - 1)
     
 
 Tensor = torch.cuda.FloatTensor if cuda else torch.Tensor
@@ -143,9 +151,7 @@ np.random.seed(1)
 if opt.epoch != 0:
     LoadRandomState(opt.epoch - 1)
    
-
-
-
+# Load the training data:
 dataPath = GetDataPath(opt.train_dataset_name)
 
 dataloader = DataLoader(
@@ -156,16 +162,19 @@ dataloader = DataLoader(
 )
 
 
-# Set up timing:
+# ----------
+#  Training
+# ----------
+
+print("Beginning training:")
+
+# Set up training timing:
 trainingStartTime   = time.time()
 totalTrainingTime   = 0
 if opt.epoch != 0:
     totalTrainingTime = LoadTrainingTime(opt.epoch - 1)
 
-
-# ----------
-#  Training
-# ----------
+# Main training loop:
 for epoch in range(opt.epoch, opt.n_epochs):
     epochStartTime = time.time()
     for i, imgs in enumerate(dataloader):
@@ -243,7 +252,7 @@ for epoch in range(opt.epoch, opt.n_epochs):
     
     # Step the scheduler once per epoch
     G_scheduler.step()
-    # D_scheduler.step()
+    D_scheduler.step()
 
     # Update epoch time:
     epochTime           = time.time() - epochStartTime
@@ -268,7 +277,7 @@ for epoch in range(opt.epoch, opt.n_epochs):
 # Cache the final training time:
 trainingEndTime = time.time()
 
-
+print("Training complete!")
 
 # ------------
 # Print stats:
