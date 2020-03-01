@@ -53,6 +53,8 @@ class ImageDataset(Dataset):
 def GetDataPath(dataset_name):
     """
     Helper function: Allow launching of the script from the project root directory (ie. within an IDE)
+
+    Returns ../../data/DATASET_NAME, or ./data/DATASET_NAME, as appropriate
     """
     # Try from the implementations directory:
     dataPath = "../../data/%s" % dataset_name
@@ -68,6 +70,8 @@ def GetDataPath(dataset_name):
 def GetModelPath():
     """
     Helper function: Get the relative /saved_models/ path
+
+    Returns ../../saved_models/, or ./saved_models/, as appropriate
     """
     # Try from the implementations directory:
     modelPath = "../../saved_models/"
@@ -80,20 +84,58 @@ def GetModelPath():
     return modelPath
 
 
+def GetImagesPath():
+    """
+    Helper function: Get the relative /images/ path
+
+    Returns ../../images/, or ./images/, as appropriate
+    """
+    # Try from the implementations directory:
+    imagesPath = "../../images/"
+    if not os.path.isdir(imagesPath):
+        # Try from the project root:
+        imagesPath = "./images/"
+        if not os.path.isdir(imagesPath):
+            print("Error: Valid images path not found!")
+
+    return imagesPath
+
+
+def GetHighestWeightIndex():
+    """
+    Helper function: Get the index of the highest weights file in the /saved_models directory
+    """
+    dataPath = GetModelPath()
+
+    return GetHighestWeightIndexUsingPath(dataPath)
+
+
+def GetHighestWeightIndexUsingPath(dataPath):
+    """
+    Helper function: Get the index of the highest weights file in the /saved_models directory.
+
+    For efficiency, use this function if you've already got a copy of the current /saved_models directory
+    """
+
+    highestIndex = max([int(re.sub('[^0-9]','', f)) for f in os.listdir(dataPath)])
+
+    return highestIndex
+
 
 def GetModelDataPath(modelType, epoch = -1):
     """
     Helper function: Get the correct relative path of the saved model weights/biases
 
-    modelType = "generator" or "discriminator" (defaults to generator if errors occur)
-    epoch = specific epoch to load. Loads the max if no valid epoch is supplied
+    modelType   = "generator" or "discriminator" (defaults to generator if errors occur)
+    epoch       = Specific epoch to load. Loads the max if no valid epoch is supplied
     """
 
     dataPath = GetModelPath()
     
     # If no valid epoch is supplied, get the max:
     if epoch < 0:
-        epoch = max([int(re.sub('[^0-9]','', f)) for f in os.listdir(dataPath)])
+        # epoch = max([int(re.sub('[^0-9]','', f)) for f in os.listdir(dataPath)])
+        epoch = GetHighestWeightIndexUsingPath(dataPath)
 
     dataName = "generator_" + str(epoch) + ".pth"
     if modelType == "discriminator":

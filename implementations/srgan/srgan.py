@@ -30,6 +30,7 @@ import torch
 
 # My stuff:
 import time
+import validateModel
 
 
 #TODO:
@@ -37,8 +38,6 @@ import time
 # How do noise filtering models work? Might be worth adding some layers similar to that?
 # Speed: 
     # Tune batch size to max GPU mem usage (nvidia-smi)
-# Break testing out into a seperate file   
-
 
 
 
@@ -46,15 +45,15 @@ os.makedirs("images", exist_ok=True)
 os.makedirs("saved_models", exist_ok=True)
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
-# parser.add_argument("--epoch", type=int, default=4, help="epoch to start training from")
+# parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
+parser.add_argument("--epoch", type=int, default=200, help="epoch to start training from")
 parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
 # parser.add_argument("--n_epochs", type=int, default=6, help="number of epochs of training")
 # parser.add_argument("--dataset_name", type=str, default="img_align_celeba", help="name of the dataset")
-parser.add_argument("--train_dataset_name", type=str, default="Linnaeus 5 256X256_train", help="name of the training dataset")
-# parser.add_argument("--train_dataset_name", type=str, default="Linnaeus 5 256X256_quick", help="name of the training dataset")
-parser.add_argument("--valid_dataset_name", type=str, default="Linnaeus 5 256X256_test", help="name of the testing dataset")
-# parser.add_argument("--valid_dataset_name", type=str, default="Linnaeus 5 256X256_quick", help="name of the testing dataset")
+# parser.add_argument("--train_dataset_name", type=str, default="Linnaeus 5 256X256_train", help="name of the training dataset")
+parser.add_argument("--train_dataset_name", type=str, default="Linnaeus 5 256X256_quick", help="name of the training dataset")
+# parser.add_argument("--valid_dataset_name", type=str, default="Linnaeus 5 256X256_test", help="name of the testing dataset")
+parser.add_argument("--valid_dataset_name", type=str, default="Linnaeus 5 256X256_quick", help="name of the testing dataset")
 # parser.add_argument("--batch_size", type=int, default=4, help="size of the batches")
 parser.add_argument("--batch_size", type=int, default=8, help="size of the training batches")
 parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate")
@@ -71,7 +70,7 @@ parser.add_argument("--channels", type=int, default=3, help="number of image cha
 parser.add_argument("--sample_interval", type=int, default=100, help="interval between saving image samples")
 # parser.add_argument("--sample_interval", type=int, default=1, help="interval between saving image samples")
 # parser.add_argument("--checkpoint_interval", type=int, default=-1, help="interval between model checkpoints")
-parser.add_argument("--checkpoint_interval", type=int, default=10, help="interval between model checkpoints")
+parser.add_argument("--checkpoint_interval", type=int, default=5, help="interval between model checkpoints")
 opt = parser.parse_args()
 print(opt)
 
@@ -114,15 +113,20 @@ optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt
 
 # Schedule learning rate:
 G_scheduler     = torch.optim.lr_scheduler.StepLR(optimizer_G, step_size = opt.decay_epoch, gamma = 0.1)
-D_scheduler     = torch.optim.lr_scheduler.StepLR(optimizer_D, step_size = opt.decay_epoch, gamma = 0.1)
-print("Scheduled learning rate for decay at epoch " + str(opt.decay_epoch))
+print("Scheduled generator learning rate for decay at epoch " + str(opt.decay_epoch))
+# D_scheduler     = torch.optim.lr_scheduler.StepLR(optimizer_D, step_size = opt.decay_epoch, gamma = 0.1)
+# print("Scheduled learning rate for decay at epoch " + str(opt.decay_epoch))
 
 # Load previous scheduler states:
-if opt.epoch != 0:   
+if opt.epoch != 0:
+    
     G_scheduler.load_state_dict(torch.load(GetModelPath() + 'g_scheduler_' + str(opt.epoch - 1) + '.pth'))
-    D_scheduler.load_state_dict(torch.load(GetModelPath() + 'g_scheduler_' + str(opt.epoch - 1) + '.pth'))
+    # D_scheduler.load_state_dict(torch.load(GetModelPath() + 'd_scheduler_' + str(opt.epoch - 1) + '.pth'))
 
-
+    # Seems this gets the loaded learning rate to stick?
+    G_scheduler.step(opt.epoch - 1)
+    # D_scheduler.step(opt.epoch - 1)
+    
 
 Tensor = torch.cuda.FloatTensor if cuda else torch.Tensor
 
@@ -239,7 +243,7 @@ for epoch in range(opt.epoch, opt.n_epochs):
     
     # Step the scheduler once per epoch
     G_scheduler.step()
-    D_scheduler.step()
+    # D_scheduler.step()
 
     # Update epoch time:
     epochTime           = time.time() - epochStartTime
@@ -252,7 +256,7 @@ for epoch in range(opt.epoch, opt.n_epochs):
 
         # Save scheduler checkpoints:
         torch.save(G_scheduler.state_dict(), GetModelPath() + 'g_scheduler_' + str(epoch) + '.pth')
-        torch.save(D_scheduler.state_dict(), GetModelPath() + 'd_scheduler_' + str(epoch) + '.pth')
+        # torch.save(D_scheduler.state_dict(), GetModelPath() + 'd_scheduler_' + str(epoch) + '.pth')
 
         # Save timing info:
         SaveTrainingTime(epoch, totalTrainingTime)
@@ -265,161 +269,32 @@ for epoch in range(opt.epoch, opt.n_epochs):
 trainingEndTime = time.time()
 
 
-#----------------------------
-# Validate the trained model:
-#----------------------------
-print("Testing the trained model:")
 
-torch.cuda.empty_cache()
+# ------------
+# Print stats:
+# ------------
 
-with torch.no_grad():   # Prevent OOM errors
+print("\nNetwork stats:\n--------------")
 
-    generator.load_state_dict(torch.load(GetModelDataPath("generator")))
-    discriminator.load_state_dict(torch.load(GetModelDataPath("discriminator")))
+print("\nGenerator:\n----------")
+print(generator)    
 
-    # Set models to eval mode, so batchnorm is disabled
-    generator.eval()
-    discriminator.eval()
+print("\nDiscriminator:\n--------------")
+print(discriminator)
 
-    generator           = generator.cuda()
-    discriminator       = discriminator.cuda()
-    feature_extractor   = feature_extractor.cuda()
-    criterion_GAN       = criterion_GAN.cuda()
-    criterion_content   = criterion_content.cuda()
+totalTrainable = sum(p.numel() for p in generator.parameters() if p.requires_grad)
+print("\nNumber of trainable parameters in generator = " + str(totalTrainable))
 
-    dataPath = GetDataPath(opt.valid_dataset_name)
+totalTrainable = sum(p.numel() for p in discriminator.parameters() if p.requires_grad)
+print("Number of trainable parameters in discriminator = " + str(totalTrainable))
 
-    dataloader = DataLoader(
-        ImageDataset(dataPath, hr_shape=hr_shape),
-        batch_size=opt.batch_size,
-        shuffle=False,
-        num_workers=opt.n_cpu,
-    )
-
-    # Initialize min/max result caches:
-    max_D_loss          = -1
-    max_D_loss_index    = -1
-    min_D_loss          = sys.maxsize
-    min_D_loss_index    = -1
-
-    max_G_loss          = -1
-    max_G_loss_index    = -1
-    min_G_loss          = sys.maxsize
-    min_G_loss_index    = -1
-
-    # Validate:
-    for i, imgs in enumerate(dataloader):
-            testStartTime = time.time()
-
-            # Configure model input
-            imgs_lr = Variable(imgs["lr"].type(Tensor))
-            imgs_hr = Variable(imgs["hr"].type(Tensor))
-
-            # Adversarial ground truths
-            valid   = Variable(Tensor(np.ones((imgs_lr.size(0), *discriminator.output_shape))), requires_grad=False)
-            fake    = Variable(Tensor(np.zeros((imgs_lr.size(0), *discriminator.output_shape))), requires_grad=False)
-
-            # ---------------
-            # Test Generator
-            # ---------------
-
-            # optimizer_G.zero_grad() # Clear the last step
-
-            # Generate a high resolution image from low resolution input
-            gen_hr = generator(imgs_lr)
-
-            # Adversarial loss
-            loss_GAN = criterion_GAN(discriminator(gen_hr), valid)
-
-            # Content loss
-            gen_features    = feature_extractor(gen_hr)
-            real_features   = feature_extractor(imgs_hr)
-            loss_content    = criterion_content(gen_features, real_features.detach())
-
-            # Total loss
-            loss_G = loss_content + 1e-3 * loss_GAN
-
-            # loss_G.backward()
-            # optimizer_G.step()
-
-            # -------------------
-            # Test Discriminator
-            # -------------------
-
-            # optimizer_D.zero_grad() # Clear the last step
-
-            # Loss of real and fake images
-            loss_real = criterion_GAN(discriminator(imgs_hr), valid)
-            loss_fake = criterion_GAN(discriminator(gen_hr.detach()), fake)
-
-            # Total loss
-            loss_D = (loss_real + loss_fake) / 2
-
-            # loss_D.backward()
-            # optimizer_D.step()
-
-            # Update log records
-            if loss_G.item() > max_G_loss:
-                max_G_loss          = loss_G.item()
-                max_G_loss_index    = i
-            if loss_G.item() < min_G_loss:
-                min_G_loss          = loss_G.item()
-                min_G_loss_index    = i
-            if loss_D.item() > max_D_loss:
-                max_D_loss          = loss_D.item()
-                max_D_loss_index    = i
-            if loss_D.item() < min_D_loss:
-                min_D_loss          = loss_D.item()
-                min_D_loss_index    = i
-
-            # --------------
-            #  Log Progress
-            # --------------
-            testTime = time.time() - testStartTime
-            sys.stdout.write(
-                "[Test image %d/%d] [D loss: %f] [G loss: %f] [Test time: %fs]\n"
-                % (i, len(dataloader), loss_D.item(), loss_G.item(), testTime)
-            )
-
-            # Save image grid with upsampled inputs and SRGAN outputs
-            imgs_lr = nn.functional.interpolate(imgs_lr, scale_factor=4)
-            gen_hr  = make_grid(gen_hr, nrow=1, normalize=True)
-            imgs_lr = make_grid(imgs_lr, nrow=1, normalize=True)
-
-            imgs_hr = make_grid(imgs_hr, nrow=1, normalize=True)
-
-            img_grid = torch.cat((imgs_lr, gen_hr, imgs_hr), -1)
-            save_image(img_grid, "images/test_%d.png" % i, normalize=False)
+print("\nTraining results:\n-----------------")
+print("Current session training time (secs) = " + str(trainingEndTime - trainingStartTime))
+print("TOTAL training time (secs) = " + str(totalTrainingTime))
 
 
-    # ------------
-    # Print stats:
-    # ------------
-    print("\nTraining results:\n-----------------")
-    print("Current session training time (secs) = " + str(trainingEndTime - trainingStartTime))
-    print("TOTAL training time (secs) = " + str(totalTrainingTime))
-
-    print("\nTest results:\n-------------")
-    
-    print("Min generator test loss = " + str(min_G_loss) + ", at index " + str(min_G_loss_index))
-    print("Max generator test loss = " + str(max_G_loss) + ", at index " + str(max_G_loss_index))
-
-    print("Min discriminator test loss = " + str(min_D_loss) + ", at index " + str(min_D_loss_index))
-    print("Max discriminator test loss = " + str(max_D_loss) + ", at index " + str(max_D_loss_index))
-    
-
-    print("\nNetwork stats:\n--------------")
-
-    totalTrainable = sum(p.numel() for p in generator.parameters() if p.requires_grad)
-    print("Number of trainable parameters in generator = " + str(totalTrainable))
-
-    totalTrainable = sum(p.numel() for p in discriminator.parameters() if p.requires_grad)
-    print("Number of trainable parameters in discriminator = " + str(totalTrainable))
-
-    print("\nGenerator:\n----------")
-    print(generator)    
-
-    print("\nDiscriminator:\n--------------")
-    print(discriminator)
-
-    
+#----------------
+# Run validation:
+#----------------
+opt.epoch = GetHighestWeightIndex()
+validateModel.main(opt)
