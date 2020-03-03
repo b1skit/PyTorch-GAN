@@ -44,15 +44,15 @@ os.makedirs("images", exist_ok=True)
 os.makedirs("saved_models", exist_ok=True)
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
-# parser.add_argument("--epoch", type=int, default=200, help="epoch to start training from")
+# parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
+parser.add_argument("--epoch", type=int, default=166, help="epoch to start training from")
 parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
 # parser.add_argument("--n_epochs", type=int, default=6, help="number of epochs of training")
 # parser.add_argument("--dataset_name", type=str, default="img_align_celeba", help="name of the dataset")
-# parser.add_argument("--train_dataset_name", type=str, default="Linnaeus 5 256X256_train", help="name of the training dataset")
-parser.add_argument("--train_dataset_name", type=str, default="Linnaeus 5 256X256_quick", help="name of the training dataset")
-# parser.add_argument("--valid_dataset_name", type=str, default="Linnaeus 5 256X256_test", help="name of the testing dataset")
-parser.add_argument("--valid_dataset_name", type=str, default="Linnaeus 5 256X256_quick", help="name of the testing dataset")
+parser.add_argument("--train_dataset_name", type=str, default="Linnaeus 5 256X256_train", help="name of the training dataset")
+# parser.add_argument("--train_dataset_name", type=str, default="Linnaeus 5 256X256_quick", help="name of the training dataset")
+parser.add_argument("--valid_dataset_name", type=str, default="Linnaeus 5 256X256_test", help="name of the testing dataset")
+# parser.add_argument("--valid_dataset_name", type=str, default="Linnaeus 5 256X256_quick", help="name of the testing dataset")
 # parser.add_argument("--batch_size", type=int, default=4, help="size of the batches")
 parser.add_argument("--batch_size", type=int, default=8, help="size of the training batches")
 parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate")
@@ -72,7 +72,7 @@ parser.add_argument("--sample_interval", type=int, default=100, help="interval b
 # parser.add_argument("--checkpoint_interval", type=int, default=-1, help="interval between model checkpoints")
 parser.add_argument("--checkpoint_interval", type=int, default=5, help="interval between model checkpoints")
 # parser.add_argument("--num_residual_blocks", type=int, default=16, help="Number of residual blocks to use in the generator network")
-parser.add_argument("--num_residual_blocks", type=int, default=16, help="Number of residual blocks to use in the generator network")
+parser.add_argument("--num_residual_blocks", type=int, default=19, help="Number of residual blocks to use in the generator network")
 opt = parser.parse_args()
 print(opt)
 
@@ -81,7 +81,6 @@ cuda = torch.cuda.is_available()
 hr_shape = (opt.hr_height, opt.hr_width)
 
 # Initialize generator and discriminator
-# generator           = GeneratorResNet()
 generator           = GeneratorResNet(n_residual_blocks=opt.num_residual_blocks)
 discriminator       = Discriminator(input_shape=(opt.channels, *hr_shape))
 feature_extractor   = FeatureExtractor()
@@ -127,14 +126,18 @@ print("Scheduled discriminator learning rate for decay at epoch " + str(opt.d_de
 
 # Load previous scheduler states:
 if opt.epoch != 0:
-    
-    G_scheduler.load_state_dict(torch.load(GetModelPath() + 'g_scheduler_' + str(opt.epoch - 1) + '.pth'))
-    D_scheduler.load_state_dict(torch.load(GetModelPath() + 'd_scheduler_' + str(opt.epoch - 1) + '.pth'))
+    try:
+        G_scheduler.load_state_dict(torch.load(GetModelPath() + 'g_scheduler_' + str(opt.epoch - 1) + '.pth'))
+        G_scheduler.step(opt.epoch - 1)
+    except:
+        print("ERROR: Failed to load generator shedular state")
 
-    # Seems this gets the loaded learning rate to stick?
-    G_scheduler.step(opt.epoch - 1)
-    D_scheduler.step(opt.epoch - 1)
-    
+    try:
+        D_scheduler.load_state_dict(torch.load(GetModelPath() + 'd_scheduler_' + str(opt.epoch - 1) + '.pth'))
+        D_scheduler.step(opt.epoch - 1)
+    except:
+        print("ERROR: Failed to load discriminator shedular state")
+
 
 Tensor = torch.cuda.FloatTensor if cuda else torch.Tensor
 
@@ -265,7 +268,7 @@ for epoch in range(opt.epoch, opt.n_epochs):
 
         # Save scheduler checkpoints:
         torch.save(G_scheduler.state_dict(), GetModelPath() + 'g_scheduler_' + str(epoch) + '.pth')
-        # torch.save(D_scheduler.state_dict(), GetModelPath() + 'd_scheduler_' + str(epoch) + '.pth')
+        torch.save(D_scheduler.state_dict(), GetModelPath() + 'd_scheduler_' + str(epoch) + '.pth')
 
         # Save timing info:
         SaveTrainingTime(epoch, totalTrainingTime)

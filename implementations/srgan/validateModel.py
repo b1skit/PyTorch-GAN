@@ -24,7 +24,7 @@ import torch
 
 # My stuff:
 import time
-
+import re
 
 #TODO:
 # Branch for different network configs
@@ -40,13 +40,29 @@ def main(opt):
     """
     opt is the result of ArgumentParser's parse_args()
     """
-
+    print("----------------")
+    print("Testing results:")
+    print("----------------")
+    
     cuda        = torch.cuda.is_available()
 
     hr_shape    = (opt.hr_height, opt.hr_width)
 
+
+    # Count the number of unique residual layers mentioned in the generator state dict:
+    generatorStateDict = torch.load(GetModelDataPath("generator", opt.epoch))
+    resBlocks = {}
+    for key in generatorStateDict:
+        processedKey = re.split(r'^(res_blocks\.[0-9].)', key)
+        if len(processedKey) > 1:
+            resBlocks[processedKey[1]] = processedKey[1] # Insert an arbitrary entry: We just care about counting the unique keys
+
+    num_residual_blocks = len(resBlocks)
+    print("Counted " + str(num_residual_blocks) + " residual blocks in loaded generator state dict")
+
+
     # Initialize generator and discriminator
-    generator           = GeneratorResNet()
+    generator           = GeneratorResNet(n_residual_blocks=num_residual_blocks)
     discriminator       = Discriminator(input_shape=(opt.channels, *hr_shape))
     feature_extractor   = FeatureExtractor()
 
@@ -68,7 +84,7 @@ def main(opt):
         criterion_content   = criterion_content.cuda()
 
     # Load pretrained models
-    generator.load_state_dict(torch.load(GetModelDataPath("generator", opt.epoch)))
+    generator.load_state_dict(generatorStateDict)
     discriminator.load_state_dict(torch.load(GetModelDataPath("discriminator", opt.epoch)))
 
     Tensor = torch.cuda.FloatTensor if cuda else torch.Tensor
