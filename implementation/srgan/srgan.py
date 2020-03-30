@@ -65,7 +65,7 @@ parser.add_argument("--hr_width", type=int, default=256, help="high res. image w
 parser.add_argument("--channels", type=int, default=3, help="number of image channels")
 parser.add_argument("--sample_interval", type=int, default=100, help="interval between saving image samples")
 parser.add_argument("--checkpoint_interval", type=int, default=5, help="interval between model checkpoints")
-parser.add_argument("--num_residual_blocks", type=int, default=8, help="Number of residual blocks to use in the generator network")
+parser.add_argument("--num_residual_blocks", type=int, default=16, help="Number of residual blocks to use in the generator network")
 opt = parser.parse_args()
 print(opt)
 
