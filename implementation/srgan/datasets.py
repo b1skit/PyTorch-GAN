@@ -1,5 +1,7 @@
 """
-Helper functions for loading and using datasets
+Helper functions for loading and using datasets.
+
+Allows the main script to be launched directly by command line, or via an IDE
 """
 
 import glob
