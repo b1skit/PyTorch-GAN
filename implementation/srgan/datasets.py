@@ -1,3 +1,7 @@
+"""
+Helper functions for loading and using datasets
+"""
+
 import glob
 import random
 import os
@@ -15,7 +19,6 @@ import random
 # Normalization parameters for pre-trained PyTorch models
 mean = np.array([0.485, 0.456, 0.406])
 std = np.array([0.229, 0.224, 0.225])
-
 
 
 class ImageDataset(Dataset): # Creates a map-style dataset
@@ -80,7 +83,7 @@ def GetDataPath(dataset_name):
 
     Returns ../../data/DATASET_NAME, or ./data/DATASET_NAME, as appropriate
     """
-    # Try from the implementations directory:
+    # Try from the implementation directory:
     dataPath = "../../data/%s" % dataset_name
     if not os.path.isdir(dataPath):
         # Try from the project root:
@@ -97,7 +100,7 @@ def GetModelPath():
 
     Returns ../../saved_models/, or ./saved_models/, as appropriate
     """
-    # Try from the implementations directory:
+    # Try from the implementation directory:
     modelPath = "../../saved_models/"
     if not os.path.isdir(modelPath):
         # Try from the project root:
@@ -114,7 +117,7 @@ def GetImagesPath():
 
     Returns ../../images/, or ./images/, as appropriate
     """
-    # Try from the implementations directory:
+    # Try from the implementation directory:
     imagesPath = "../../images/"
     if not os.path.isdir(imagesPath):
         # Try from the project root:
@@ -131,7 +134,7 @@ def GetArbitraryPath(thePath):
 
     Returns ../../thePath/, or ./thePath/, as appropriate
     """
-    # Try from the implementations directory:
+    # Try from the implementation directory:
     arbitraryPath = "../../" + thePath + "/"
     if not os.path.isdir(arbitraryPath):
         # Try from the project root:

@@ -1,5 +1,7 @@
 """
-Convert an image using a trained SRGAN model
+Test script: Use this to super-sample an image using a trained SRGAN model
+
+Note: This script will fail if network weights cannot be found.
 """
 
 import argparse
@@ -22,7 +24,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 
-# My stuff:
 import time
 import re
 
@@ -36,14 +37,13 @@ def main(opt):
     outputDir = "processedOutput"
     os.makedirs(outputDir, exist_ok=True)
 
-    print("----------------")
-    print("Testing results:")
-    print("----------------")
+    print("-------------------")
+    print("Processing results:")
+    print("-------------------")
     
     cuda        = torch.cuda.is_available()
 
     hr_shape    = (opt.hr_height, opt.hr_width)
-
 
     # Count the number of unique residual layers mentioned in the generator state dict:
     generatorStateDict = torch.load(GetModelDataPath("generator")) # Load the max trained weights from the /saved_models directory
@@ -56,17 +56,14 @@ def main(opt):
     num_residual_blocks = len(resBlocks)
     print("Counted " + str(num_residual_blocks) + " residual blocks in loaded generator state dict")
 
-
     # Initialize generator and discriminator
     generator           = GeneratorResNet(n_residual_blocks=num_residual_blocks)
-
     
     if cuda:
         print("Cuda is supported!!!")
         torch.cuda.empty_cache()
 
         generator           = generator.cuda()
-
 
     # Load pretrained models
     generator.load_state_dict(generatorStateDict)
@@ -99,7 +96,7 @@ def main(opt):
             num_workers=opt.n_cpu,
         )
 
-        # Validate:
+        # Process:
         for i, imgs in enumerate(dataloader):
             testStartTime = time.time()
 
@@ -118,11 +115,9 @@ def main(opt):
                 % (i, len(dataloader), testTime)
             )
             
-
             gen_hr  = make_grid(gen_hr, nrow=1, normalize=True)
 
             save_image(gen_hr, GetArbitraryPath(outputDir) + ("0" if i < 10 else "") + "%d.png" % (i + 1), normalize=False)
-
 
             # Record the iteration time:
             totalTestTime = totalTestTime + testTime
@@ -135,30 +130,22 @@ def main(opt):
         testTime = time.time() - testStartTime
         averageTestTime = totalTestTime / numTests
 
-        print("\nTest results:\n-------------")
-        print("Total test time = " + str(testTime) + " (secs) for " + str(len(dataloader.dataset)) + " test images")
-        print("Average test time = " + str(averageTestTime) + " (secs)")
+        print("\Processing results:\n-------------")
+        print("Total processing time = " + str(testTime) + " (secs) for " + str(len(dataloader.dataset)) + " test images")
+        print("Average processing time = " + str(averageTestTime) + " (secs)")
 
 
 
 if __name__ == "__main__":
     
     parser = argparse.ArgumentParser()
-    # parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
     parser.add_argument("--epoch", type=int, default=-1, help="epoch to load testing weights of. Loads the highest if argument is < 0")
-
     parser.add_argument("--valid_dataset_name", type=str, default="testImages", help="name of the folder containing images to process")
-    # parser.add_argument("--valid_dataset_name", type=str, default="Linnaeus 5 256X256_quick", help="name of the testing dataset")
-    # parser.add_argument("--batch_size", type=int, default=4, help="size of the batches")
     parser.add_argument("--batch_size", type=int, default=1, help="Number of images to process at once")
-
     parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
     parser.add_argument("--hr_height", type=int, default=256, help="high res. image height")
-    # parser.add_argument("--hr_height", type=int, default=64, help="high res. image height")
     parser.add_argument("--hr_width", type=int, default=256, help="high res. image width")
-    # parser.add_argument("--hr_width", type=int, default=64, help="high res. image width")
     parser.add_argument("--channels", type=int, default=3, help="number of image channels")
-
     opt = parser.parse_args()
     print(opt)
 

@@ -22,13 +22,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 
-# My stuff:
 import time
 import re
-
-#TODO:
-# Output naive bicubic upsampling for comparison???
-
 
 
 # Main script functionality
@@ -147,7 +142,6 @@ def main(opt):
         min_D_fake_loss          = sys.maxsize
         min_D_fake_loss_index    = -1
         avg_D_fake_loss          = 0
-
 
         max_G_loss          = -1
         max_G_loss_index    = -1
@@ -326,7 +320,6 @@ def main(opt):
         print("Avg generator total test loss = " + str(avg_G_loss))
 
 
-
         print("\nMin discriminator real test loss = " + str(min_D_real_loss) + ", at index " + str(min_D_real_loss_index))
         print("Max discriminator real test loss = " + str(max_D_real_loss) + ", at index " + str(max_D_real_loss_index))
         print("Avg discriminator real test loss = " + str(avg_D_real_loss))
@@ -343,14 +336,9 @@ def main(opt):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    # parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
     parser.add_argument("--epoch", type=int, default=-1, help="epoch to load testing weights of. Loads the highest if argument is < 0")
-
-    parser.add_argument("--valid_dataset_name", type=str, default="Linnaeus 5 256X256_test", help="name of the testing dataset")
-    # parser.add_argument("--valid_dataset_name", type=str, default="Linnaeus 5 256X256_quick", help="name of the testing dataset")
-    
+    parser.add_argument("--valid_dataset_name", type=str, default="Linnaeus 5 256X256_test", help="name of the testing dataset")  
     parser.add_argument("--batch_size", type=int, default=1, help="size of the testing batches")
-
     parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
     parser.add_argument("--hr_height", type=int, default=256, help="high res. image height")
     parser.add_argument("--hr_width", type=int, default=256, help="high res. image width")
