@@ -27,11 +27,7 @@ import time
 import re
 
 #TODO:
-# Branch for different network configs
-# How do noise filtering models work? Might be worth adding some layers similar to that?
-# Speed: 
-    # Tune batch size to max GPU mem usage (nvidia-smi)
-
+# Output naive bicubic upsampling for comparison???
 
 
 
@@ -40,6 +36,9 @@ def main(opt):
     """
     opt is the result of ArgumentParser's parse_args()
     """
+
+    os.makedirs("images", exist_ok=True)
+
     print("----------------")
     print("Testing results:")
     print("----------------")
@@ -111,7 +110,7 @@ def main(opt):
 
     torch.cuda.empty_cache()
 
-    testStartTime   = time.time()
+    currentTestStartTime   = time.time()
     totalTestTime   = 0
     numTests        = 0
 
@@ -135,107 +134,210 @@ def main(opt):
         max_D_loss_index    = -1
         min_D_loss          = sys.maxsize
         min_D_loss_index    = -1
+        avg_D_loss          = 0
+
+        max_D_real_loss          = -1
+        max_D_real_loss_index    = -1
+        min_D_real_loss          = sys.maxsize
+        min_D_real_loss_index    = -1
+        avg_D_real_loss          = 0
+
+        max_D_fake_loss          = -1
+        max_D_fake_loss_index    = -1
+        min_D_fake_loss          = sys.maxsize
+        min_D_fake_loss_index    = -1
+        avg_D_fake_loss          = 0
+
 
         max_G_loss          = -1
         max_G_loss_index    = -1
         min_G_loss          = sys.maxsize
         min_G_loss_index    = -1
+        avg_G_loss          = 0
+
+        max_G_adv_loss          = -1
+        max_G_adv_loss_index    = -1
+        min_G_adv_loss          = sys.maxsize
+        min_G_adv_loss_index    = -1
+        avg_G_adv_loss          = 0
+
+        max_G_cont_loss         = -1
+        max_G_cont_loss_index   = -1
+        min_G_cont_loss         = sys.maxsize
+        min_G_cont_loss_index   = -1
+        avg_G_cont_loss         = 0
 
         # Validate:
         for i, imgs in enumerate(dataloader):
-                testStartTime = time.time()
+            currentTestStartTime = time.time()
 
-                # Configure model input
-                imgs_lr = Variable(imgs["lr"].type(Tensor))
-                imgs_hr = Variable(imgs["hr"].type(Tensor))
+            # Configure model input
+            imgs_lr = Variable(imgs["lr"].type(Tensor))
+            imgs_hr = Variable(imgs["hr"].type(Tensor))
 
-                # Adversarial ground truths
-                valid   = Variable(Tensor(np.ones((imgs_lr.size(0), *discriminator.output_shape))), requires_grad=False)
-                fake    = Variable(Tensor(np.zeros((imgs_lr.size(0), *discriminator.output_shape))), requires_grad=False)
+            # Adversarial ground truths
+            valid   = Variable(Tensor(np.ones((imgs_lr.size(0), *discriminator.output_shape))), requires_grad=False)
+            fake    = Variable(Tensor(np.zeros((imgs_lr.size(0), *discriminator.output_shape))), requires_grad=False)
 
-                # ---------------
-                # Test Generator
-                # ---------------
+            # ---------------
+            # Test Generator
+            # ---------------
 
-                # Generate a high resolution image from low resolution input
-                gen_hr = generator(imgs_lr)
+            # Generate a high resolution image from low resolution input
+            gen_hr = generator(imgs_lr)
 
-                # Adversarial loss
-                loss_GAN = criterion_GAN(discriminator(gen_hr), valid)
+            # Adversarial loss
+            loss_GAN = criterion_GAN(discriminator(gen_hr), valid)
 
-                # Content loss
-                gen_features    = feature_extractor(gen_hr)
-                real_features   = feature_extractor(imgs_hr)
-                loss_content    = criterion_content(gen_features, real_features.detach())
+            # Content loss
+            gen_features    = feature_extractor(gen_hr)
+            real_features   = feature_extractor(imgs_hr)
+            loss_content    = criterion_content(gen_features, real_features.detach())
 
-                # Total loss
-                loss_G = loss_content + 1e-3 * loss_GAN
+            # Total loss
+            loss_G = loss_content + 1e-3 * loss_GAN
 
-                # -------------------
-                # Test Discriminator
-                # -------------------
+            # -------------------
+            # Test Discriminator
+            # -------------------
 
-                # Loss of real and fake images
-                loss_real = criterion_GAN(discriminator(imgs_hr), valid)
-                loss_fake = criterion_GAN(discriminator(gen_hr.detach()), fake)
+            # Loss of real and fake images
+            loss_real = criterion_GAN(discriminator(imgs_hr), valid)
+            loss_fake = criterion_GAN(discriminator(gen_hr.detach()), fake)
 
-                # Total loss
-                loss_D = (loss_real + loss_fake) / 2
+            # Total loss
+            loss_D = (loss_real + loss_fake) / 2
 
-                # Update log records
-                if loss_G.item() > max_G_loss:
-                    max_G_loss          = loss_G.item()
-                    max_G_loss_index    = i
-                if loss_G.item() < min_G_loss:
-                    min_G_loss          = loss_G.item()
-                    min_G_loss_index    = i
-                if loss_D.item() > max_D_loss:
-                    max_D_loss          = loss_D.item()
-                    max_D_loss_index    = i
-                if loss_D.item() < min_D_loss:
-                    min_D_loss          = loss_D.item()
-                    min_D_loss_index    = i
+            # Update log records
+            if loss_G.item() > max_G_loss:
+                max_G_loss          = loss_G.item()
+                max_G_loss_index    = i
+            if loss_G.item() < min_G_loss:
+                min_G_loss          = loss_G.item()
+                min_G_loss_index    = i
+            if loss_D.item() > max_D_loss:
+                max_D_loss          = loss_D.item()
+                max_D_loss_index    = i
+            if loss_D.item() < min_D_loss:
+                min_D_loss          = loss_D.item()
+                min_D_loss_index    = i
 
-                # --------------
-                #  Log Progress
-                # --------------
-                testTime = time.time() - testStartTime
-                sys.stdout.write(
-                    "[Test image %d/%d] [D loss: %f] [G loss: %f] [Test time: %fs]\n"
-                    % (i, len(dataloader), loss_D.item(), loss_G.item(), testTime)
-                )
+            if loss_content > max_G_cont_loss:
+                max_G_cont_loss         = loss_content.item()
+                max_G_cont_loss_index   = i
+            if loss_content < min_G_cont_loss:
+                min_G_cont_loss         = loss_content.item()
+                min_G_cont_loss_index   = i
 
-                # Save image grid with upsampled inputs and SRGAN outputs
-                imgs_lr = nn.functional.interpolate(imgs_lr, scale_factor=4)
-                gen_hr  = make_grid(gen_hr, nrow=1, normalize=True)
-                imgs_lr = make_grid(imgs_lr, nrow=1, normalize=True)
+            if loss_GAN > max_G_adv_loss:
+                max_G_adv_loss          = loss_GAN.item()
+                max_G_adv_loss_index    = i
+            if loss_GAN < min_G_adv_loss:
+                min_G_adv_loss          = loss_GAN.item()
+                min_G_adv_loss_index    = i
 
-                imgs_hr = make_grid(imgs_hr, nrow=1, normalize=True)
+            if loss_real > max_D_real_loss:
+                max_D_real_loss         = loss_real.item()
+                max_D_real_loss_index   = i
+            if loss_real < min_D_real_loss:
+                min_D_real_loss         = loss_real.item()
+                min_D_real_loss_index   = i
 
-                img_grid = torch.cat((imgs_lr, gen_hr, imgs_hr), -1)
-                save_image(img_grid, GetImagesPath() + "test_%d.png" % i, normalize=False)
+            if loss_fake > max_D_fake_loss:
+                max_D_fake_loss         = loss_fake.item()
+                max_D_fake_loss_index   = i
+            if loss_fake < min_D_fake_loss:
+                min_D_fake_loss         = loss_fake.item()
+                min_D_fake_loss_index   = i
+
+            avg_D_loss = avg_D_loss + loss_D.item()
+            avg_G_loss = avg_G_loss + loss_G.item()
+
+            avg_G_adv_loss  = avg_G_adv_loss + loss_GAN.item()
+            avg_G_cont_loss = avg_G_cont_loss + loss_content.item()
+
+            avg_D_fake_loss = avg_D_fake_loss + loss_fake.item()
+            avg_D_real_loss = avg_D_real_loss + loss_real.item()
+
+            # --------------
+            #  Log Progress
+            # --------------
+            testTime = time.time() - currentTestStartTime
+            sys.stdout.write(
+                "[Test image %d/%d] [D loss: %f] [G loss: %f] [Test time: %fs]\n"
+                % (i, len(dataloader), loss_D.item(), loss_G.item(), testTime)
+            )
+
+            # Save image grid with upsampled inputs and SRGAN outputs
+            imgs_lr = nn.functional.interpolate(imgs_lr, scale_factor=4)
+            gen_hr  = make_grid(gen_hr, nrow=1, normalize=True)
+            imgs_lr = make_grid(imgs_lr, nrow=1, normalize=True)
+
+            imgs_hr = make_grid(imgs_hr, nrow=1, normalize=True)
+
+            img_grid = torch.cat((imgs_lr, gen_hr, imgs_hr), -1)
+            save_image(img_grid, GetImagesPath() + "test_%d.png" % i, normalize=False)
 
 
-                # Record the iteration time:
-                totalTestTime = totalTestTime + testTime
-                numTests = numTests + 1
+            # Record the iteration time:
+            totalTestTime = totalTestTime + testTime
+            numTests = numTests + 1
 
 
         # ------------
         # Print stats:
         # ------------
-        testTime = time.time() - testStartTime
         averageTestTime = totalTestTime / numTests
 
+        avg_G_adv_loss  = avg_G_adv_loss / numTests
+        avg_G_cont_loss = avg_G_cont_loss / numTests
+        avg_G_loss      = avg_G_loss / numTests
+
+        avg_D_real_loss = avg_D_real_loss / numTests
+        avg_D_fake_loss = avg_D_fake_loss / numTests
+        avg_D_loss      = avg_D_loss / numTests
+
+
         print("\nTest results:\n-------------")
-        print("Total test time = " + str(testTime) + " (secs) for " + str(len(dataloader.dataset)) + " test images")
+        print("Total test time = " + str(totalTestTime) + " (secs) for " + str(len(dataloader.dataset)) + " test images")
         print("Average test time = " + str(averageTestTime) + " (secs)")
 
-        print("Min generator test loss = " + str(min_G_loss) + ", at index " + str(min_G_loss_index))
-        print("Max generator test loss = " + str(max_G_loss) + ", at index " + str(max_G_loss_index))
+        totalTrainable = sum(p.numel() for p in discriminator.parameters() if p.requires_grad)
+        print("\nNumber of trainable parameters in discriminator = " + str(totalTrainable))
 
-        print("Min discriminator test loss = " + str(min_D_loss) + ", at index " + str(min_D_loss_index))
-        print("Max discriminator test loss = " + str(max_D_loss) + ", at index " + str(max_D_loss_index))
+        print("\nGenerator contains " + str(num_residual_blocks) + " residual blocks")
+
+        totalTrainable = sum(p.numel() for p in generator.parameters() if p.requires_grad)
+        print("Number of trainable parameters in generator = " + str(totalTrainable))
+
+        print("\nNote: Generator loss = contentLoss + 1e-3 * adversarialLoss")
+
+
+        print("\nMin generator adverserial test loss = " + str(min_G_adv_loss) + ", at index " + str(min_G_adv_loss_index))
+        print("Max generator adverserial test loss = " + str(max_G_adv_loss) + ", at index " + str(max_G_adv_loss_index))
+        print("Avg generator adverserial test loss = " + str(avg_G_adv_loss))
+
+        print("\nMin generator content test loss = " + str(min_G_cont_loss) + ", at index " + str(min_G_cont_loss_index))
+        print("Max generator content test loss = " + str(max_G_cont_loss) + ", at index " + str(max_G_cont_loss_index))
+        print("Avg generator content test loss = " + str(avg_G_cont_loss))
+
+        print("\nMin generator total test loss = " + str(min_G_loss) + ", at index " + str(min_G_loss_index))
+        print("Max generator total test loss = " + str(max_G_loss) + ", at index " + str(max_G_loss_index))
+        print("Avg generator total test loss = " + str(avg_G_loss))
+
+
+
+        print("\nMin discriminator real test loss = " + str(min_D_real_loss) + ", at index " + str(min_D_real_loss_index))
+        print("Max discriminator real test loss = " + str(max_D_real_loss) + ", at index " + str(max_D_real_loss_index))
+        print("Avg discriminator real test loss = " + str(avg_D_real_loss))
+
+        print("\nMin discriminator fake test loss = " + str(min_D_fake_loss) + ", at index " + str(min_D_fake_loss_index))
+        print("Max discriminator fake test loss = " + str(max_D_fake_loss) + ", at index " + str(max_D_fake_loss_index))
+        print("Avg discriminator fake test loss = " + str(avg_D_fake_loss))
+
+        print("\nMin discriminator total test loss = " + str(min_D_loss) + ", at index " + str(min_D_loss_index))
+        print("Max discriminator total test loss = " + str(max_D_loss) + ", at index " + str(max_D_loss_index))
+        print("Avg discriminator total test loss = " + str(avg_D_loss))        
         
 
 
@@ -246,8 +348,8 @@ if __name__ == "__main__":
 
     parser.add_argument("--valid_dataset_name", type=str, default="Linnaeus 5 256X256_test", help="name of the testing dataset")
     # parser.add_argument("--valid_dataset_name", type=str, default="Linnaeus 5 256X256_quick", help="name of the testing dataset")
-    # parser.add_argument("--batch_size", type=int, default=4, help="size of the batches")
-    parser.add_argument("--batch_size", type=int, default=8, help="size of the testing batches")
+    
+    parser.add_argument("--batch_size", type=int, default=1, help="size of the testing batches")
 
     parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
     parser.add_argument("--hr_height", type=int, default=256, help="high res. image height")

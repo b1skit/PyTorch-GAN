@@ -17,7 +17,8 @@ mean = np.array([0.485, 0.456, 0.406])
 std = np.array([0.229, 0.224, 0.225])
 
 
-class ImageDataset(Dataset):
+
+class ImageDataset(Dataset): # Creates a map-style dataset
     def __init__(self, root, hr_shape):
         hr_height, hr_width = hr_shape
         # Transforms for low resolution images and high resolution images
@@ -48,6 +49,29 @@ class ImageDataset(Dataset):
     def __len__(self):
         return len(self.files)
 
+
+
+class ImageLoader(Dataset): # Creates a map-style dataset
+    def __init__(self, root):
+
+        self.identityTransform = transforms.Compose(
+            [ 
+                transforms.ToTensor(),
+                transforms.Normalize(mean, std)
+            ])
+
+        self.files = sorted(glob.glob(root + "/*.*"))
+
+    def __getitem__(self, index):
+        img = Image.open(self.files[index % len(self.files)])
+
+        img = self.identityTransform(img)
+
+        return {"img": img}
+
+
+    def __len__(self):
+        return len(self.files)
 
 
 def GetDataPath(dataset_name):
@@ -101,6 +125,23 @@ def GetImagesPath():
     return imagesPath
 
 
+def GetArbitraryPath(thePath):
+    """
+    Helper function: Get a relative arbitrary path
+
+    Returns ../../thePath/, or ./thePath/, as appropriate
+    """
+    # Try from the implementations directory:
+    arbitraryPath = "../../" + thePath + "/"
+    if not os.path.isdir(arbitraryPath):
+        # Try from the project root:
+        arbitraryPath = "./" + thePath + "/"
+        if not os.path.isdir(arbitraryPath):
+            print("Error: Valid path not found!")
+
+    return arbitraryPath
+
+
 def GetHighestWeightIndex():
     """
     Helper function: Get the index of the highest weights file in the /saved_models directory
@@ -134,7 +175,6 @@ def GetModelDataPath(modelType, epoch = -1):
     
     # If no valid epoch is supplied, get the max:
     if epoch < 0:
-        # epoch = max([int(re.sub('[^0-9]','', f)) for f in os.listdir(dataPath)])
         epoch = GetHighestWeightIndexUsingPath(dataPath)
 
     dataName = "generator_" + str(epoch) + ".pth"

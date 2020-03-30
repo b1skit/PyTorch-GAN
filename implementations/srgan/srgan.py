@@ -45,13 +45,16 @@ os.makedirs("saved_models", exist_ok=True)
 
 parser = argparse.ArgumentParser()
 # parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
-parser.add_argument("--epoch", type=int, default=166, help="epoch to start training from")
-parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
+parser.add_argument("--epoch", type=int, default=301, help="epoch to start training from")
+# parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
+parser.add_argument("--n_epochs", type=int, default=400, help="number of epochs of training")
 # parser.add_argument("--n_epochs", type=int, default=6, help="number of epochs of training")
 # parser.add_argument("--dataset_name", type=str, default="img_align_celeba", help="name of the dataset")
 parser.add_argument("--train_dataset_name", type=str, default="Linnaeus 5 256X256_train", help="name of the training dataset")
+# parser.add_argument("--train_dataset_name", type=str, default="Linnaeus 5 64X64_train", help="name of the training dataset")
 # parser.add_argument("--train_dataset_name", type=str, default="Linnaeus 5 256X256_quick", help="name of the training dataset")
 parser.add_argument("--valid_dataset_name", type=str, default="Linnaeus 5 256X256_test", help="name of the testing dataset")
+# parser.add_argument("--valid_dataset_name", type=str, default="Linnaeus 5 64X64_test", help="name of the testing dataset")
 # parser.add_argument("--valid_dataset_name", type=str, default="Linnaeus 5 256X256_quick", help="name of the testing dataset")
 # parser.add_argument("--batch_size", type=int, default=4, help="size of the batches")
 parser.add_argument("--batch_size", type=int, default=8, help="size of the training batches")
@@ -65,14 +68,16 @@ parser.add_argument("--g_decay_epoch", type=int, default=-1, help="epoch from wh
 parser.add_argument("--d_decay_epoch", type=int, default=-1, help="epoch from which to start discriminator lr decay. If < 0, no decay is used")
 parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
 parser.add_argument("--hr_height", type=int, default=256, help="high res. image height")
+# parser.add_argument("--hr_height", type=int, default=64, help="high res. image height")
 parser.add_argument("--hr_width", type=int, default=256, help="high res. image width")
+# parser.add_argument("--hr_width", type=int, default=64, help="high res. image width")
 parser.add_argument("--channels", type=int, default=3, help="number of image channels")
 parser.add_argument("--sample_interval", type=int, default=100, help="interval between saving image samples")
 # parser.add_argument("--sample_interval", type=int, default=1, help="interval between saving image samples")
 # parser.add_argument("--checkpoint_interval", type=int, default=-1, help="interval between model checkpoints")
 parser.add_argument("--checkpoint_interval", type=int, default=5, help="interval between model checkpoints")
 # parser.add_argument("--num_residual_blocks", type=int, default=16, help="Number of residual blocks to use in the generator network")
-parser.add_argument("--num_residual_blocks", type=int, default=19, help="Number of residual blocks to use in the generator network")
+parser.add_argument("--num_residual_blocks", type=int, default=8, help="Number of residual blocks to use in the generator network")
 opt = parser.parse_args()
 print(opt)
 
@@ -118,6 +123,7 @@ if opt.g_decay_epoch < 0:
     opt.g_decay_epoch = opt.n_epochs + 1 # Disable learning rate decay
 if opt.d_decay_epoch < 0:
     opt.d_decay_epoch = opt.n_epochs + 1
+
 G_scheduler     = torch.optim.lr_scheduler.StepLR(optimizer_G, step_size = opt.g_decay_epoch, gamma = 0.1)
 print("Scheduled generator learning rate for decay at epoch " + str(opt.g_decay_epoch))
 
@@ -261,10 +267,10 @@ for epoch in range(opt.epoch, opt.n_epochs):
     epochTime           = time.time() - epochStartTime
     totalTrainingTime   = totalTrainingTime + epochTime
 
-    if opt.checkpoint_interval != -1 and (epoch % opt.checkpoint_interval == 0 or epoch == opt.n_epochs - 1):
+    if opt.checkpoint_interval != -1 and epoch > 0 and (epoch % opt.checkpoint_interval == 0 or epoch == opt.n_epochs - 1):
         # Save model checkpoints
-        torch.save(generator.state_dict(), "saved_models/generator_%d.pth" % epoch)
-        torch.save(discriminator.state_dict(), "saved_models/discriminator_%d.pth" % epoch)
+        torch.save(generator.state_dict(), GetModelPath() + "generator_%d.pth" % epoch)
+        torch.save(discriminator.state_dict(), GetModelPath() + "discriminator_%d.pth" % epoch)
 
         # Save scheduler checkpoints:
         torch.save(G_scheduler.state_dict(), GetModelPath() + 'g_scheduler_' + str(epoch) + '.pth')
@@ -279,6 +285,7 @@ for epoch in range(opt.epoch, opt.n_epochs):
 
 # Cache the final training time:
 trainingEndTime = time.time()
+
 
 print("Training complete!")
 
