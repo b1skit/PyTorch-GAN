@@ -36,7 +36,7 @@ Instructions for using included pre-trained weights:
     3.1 Navigate to the ./implementation/srgan/ directory\
     3.2 Execute the following command:\
         python processImage.py\
-	-> You may need to supply the location of your test images via command line arguments\
+	- You may need to supply the location of your test images via command line arguments
 
     Note: Use the following command to view a list of optional command line parameters to control program execution:\
         python processImage.py --help
