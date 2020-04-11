@@ -22,7 +22,7 @@ Instructions for training:
     2.2 Execute the following command:
         python srgan.py
 
-    Recommended: Use this command to view a list of optional command line parameters to control program execution:
+    Recommended: Use this command to view a list of optional command line parameters to control program execution:\
         python srgan.py --help
 
 
