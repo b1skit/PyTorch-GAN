@@ -1,11 +1,9 @@
-Photo-Realistic Single Image Super-Resolution Using a Generative Adversarial Network
+# Photo-Realistic Single Image Super-Resolution Using a Generative Adversarial Network
 
 This work is a modified fork of Erik Lindernoren's SRGAN implementation in the excellent PyTorch-GAN collection.
 (https://github.com/eriklindernoren/PyTorch-GAN)
 
-The goal of this project is to research the influence the depth of the discriminator network has on the model's
-performance. Pre-trained weights have been included for discriminator networks with b=8, 12, 16, 20 residual
-blocks, trained using teh Linnaeus 5 dataset of 256x256 images.
+This repository was created as part of a research experiment exploring the influence that the depth of the discriminator network has on the performance of the SRGAN model. Weights are included for models trained on the Linnaeus 5 dataset of 256x256 images, with discriminator networks containing B=8, 12, 16, 20 residual blocks.
 
 Download the Linnaeus 5 dataset (Chaladze, G. Kalatozishvili L. 2017.) here: http://chaladze.com/l5/
 - You will need to rename the image files and flatted the directory structure so that all images are located in
@@ -41,23 +39,25 @@ Instructions for using included pre-trained weights:
 	-> You may need to supply the location of your test images via command line arguments\
 
     Note: Use the following command to view a list of optional command line parameters to control program execution:\
-        python processImage.py --help\
+        python processImage.py --help
 
 
 File breakdown:
 ---------------
-/data/						Image data directory\
-/images/					Automatically created: Images are output here during training \
-/implementation/srgan/dataset.py		Helper functions for loading and using datasets\
-/implementation/srgan/models.py			SRGAN generator and discriminator network implementation\
-/implementation/srgan/processImage.py		Test script: Super-resolve an image using pre-trained weights\
-/implementation/srgan/srgan.py			Network training. This is the main program funcitonality\
-/implementation/srgan/validateGenerator.py	Test script: Evaluate generator loss (ie. content loss) only\
-/implementation/srgan/validateModel.py		Validation testing script. Called by srgan.py\
-/learned weights/8 residual blocks/		Pre-trained network, for a generator with b=8 residual blocks\
-/learned weights/12 residual blocks/		Pre-trained network, for a generator with b=12 residual blocks\
-/learned weights/16 residual blocks/		Pre-trained network, for a generator with b=16 residual blocks\
-/learned weights/20 residual blocks/		Pre-trained network, for a generator with b=20 residual blocks\
-/LICENCE					Licence file, as provided by Erik Linernoren\
-/README.md					This file\
-/saved_models/					Automatically created: Saved weights/training states output here\
+|File                                          	| Description |
+|-----------------------------------------------|:---------------------------------------------------------------|
+|/data/                                        	| Image data directory |
+|/images/                                      	| Automatically created: Images are output here during training  |
+|/implementation/srgan/dataset.py              	| Helper functions for loading and using datasets|
+|/implementation/srgan/models.py		| SRGAN generator and discriminator network implementation|
+|/implementation/srgan/processImage.py	       	| Test script: Super-resolve an image using pre-trained weights|
+|/implementation/srgan/srgan.py			| Network training. This is the main program funcitonality|
+|/implementation/srgan/validateGenerator.py	| Test script: Evaluate generator loss (ie. content loss) only|
+|/implementation/srgan/validateModel.py		| Validation testing script. Called by srgan.py|
+|/learned weights/8 residual blocks/		| Pre-trained network, for a generator with b=8 residual blocks|
+|/learned weights/12 residual blocks/		| Pre-trained network, for a generator with b=12 residual blocks|
+|/learned weights/16 residual blocks/		| Pre-trained network, for a generator with b=16 residual blocks|
+|/learned weights/20 residual blocks/		| Pre-trained network, for a generator with b=20 residual blocks|
+|/LICENCE					| Licence file, as provided by Erik Linernoren|
+|/README.md					| This file|
+|/saved_models/					| Automatically created: Saved weights/training states output here|
